@@ -1,0 +1,10 @@
+{
+  "name": "sei-hackathon",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "concurrently \"npm start --prefix backend\" \"npm run dev --prefix frontend\""
+  },
+  "dependencies": {
+    "concurrently": "^8.0.1"
+  }
+}
