@@ -1,6 +1,8 @@
 import datetime
 import random
 import json
+import os
+from web3 import Web3
 
 # --- Placeholder Data Simulation (Replace with actual Sei Network API calls) ---
 # In a real application, these functions would interact with Sei's EVM RPC
@@ -91,84 +93,104 @@ def simulate_get_wallet_balances(wallet_address):
             balances["SOME_ALT_COIN"] = random.uniform(10, 200)
     return balances
 
-def simulate_get_loan_repayment_history(wallet_address):
+def get_loan_repayment_history(wallet_address, from_block=0, to_block="latest"):
+    """Fetch loan repayment events for ``wallet_address`` from the Sei EVM RPC.
+
+    Parameters
+    ----------
+    wallet_address: str
+        Address to query.
+    from_block: int, optional
+        Starting block for the search.
+    to_block: int or str, optional
+        End block for the search.
+
+    Returns
+    -------
+    list[dict]
+        A list of loan records with ``status`` (``"repaid"``, ``"defaulted"``) and
+        ``repayment_delay_days`` (``None`` if defaulted).
     """
-    Simulates fetching historical loan repayment data on Sei-native protocols.
-    This is the most challenging part to simulate accurately without a real Sei
-    lending protocol's historical data.
-    Returns a list of loan records, each with 'status' ('repaid', 'defaulted', 'late')
-    and 'repayment_delay_days'.
-    """
-    if wallet_address.startswith("0x1"): # Excellent repayment history
-        return [
-            {"status": "repaid", "repayment_delay_days": 0},
-            {"status": "repaid", "repayment_delay_days": 0},
-            {"status": "repaid", "repayment_delay_days": 0},
-            {"status": "repaid", "repayment_delay_days": 0},
-            {"status": "repaid", "repayment_delay_days": 0}
-        ]
-    elif wallet_address.startswith("0x2"): # Mixed repayment history
-        return [
-            {"status": "repaid", "repayment_delay_days": 0},
-            {"status": "repaid", "repayment_delay_days": 5},
-            {"status": "repaid", "repayment_delay_days": 0},
-            {"status": "defaulted", "repayment_delay_days": None}
-        ]
-    elif wallet_address.startswith("0x3"): # Poor or no repayment history
-        return [
-            {"status": "defaulted", "repayment_delay_days": None},
-            {"status": "late", "repayment_delay_days": 10}
-        ] if random.random() < 0.7 else [] # 70% chance of some bad history for "risky" wallets
-    else: # Default for other random addresses
-        if random.random() < 0.6: # 60% chance of having some history
-            history = []
-            num_loans = random.randint(1, 5)
-            for _ in range(num_loans):
-                status_choice = random.choices(["repaid", "late", "defaulted"], weights=[0.7, 0.2, 0.1], k=1)[0]
-                if status_choice == "repaid":
-                    history.append({"status": "repaid", "repayment_delay_days": 0})
-                elif status_choice == "late":
-                    history.append({"status": "late", "repayment_delay_days": random.randint(1, 15)})
-                else:
-                    history.append({"status": "defaulted", "repayment_delay_days": None})
-            return history
-        else:
-            return []
+
+    rpc = os.environ.get("SEI_RPC_URL", "https://evm-rpc.sei-apis.com")
+    lending_address = os.environ.get("SEI_LENDING_CONTRACT")
+    lending_abi_path = os.environ.get("SEI_LENDING_ABI")
+    if not lending_address or not lending_abi_path:
+        raise ValueError("SEI_LENDING_CONTRACT and SEI_LENDING_ABI env vars are required")
+
+    with open(lending_abi_path) as f:
+        lending_abi = json.load(f)
+
+    w3 = Web3(Web3.HTTPProvider(rpc))
+    contract = w3.eth.contract(address=Web3.to_checksum_address(lending_address), abi=lending_abi)
+
+    issued = contract.events.LoanIssued.create_filter(fromBlock=from_block, toBlock=to_block,
+                                                     argument_filters={"borrower": wallet_address}).get_all_entries()
+    repaid = contract.events.LoanRepaid.create_filter(fromBlock=from_block, toBlock=to_block,
+                                                     argument_filters={"borrower": wallet_address}).get_all_entries()
+    defaulted = contract.events.LoanDefaulted.create_filter(fromBlock=from_block, toBlock=to_block,
+                                                           argument_filters={"borrower": wallet_address}).get_all_entries()
+
+    history = []
+    repaid_by_loan = {e["args"]["loanId"]: e for e in repaid}
+    defaulted_by_loan = {e["args"]["loanId"]: e for e in defaulted}
+
+    for evt in issued:
+        loan_id = evt["args"]["loanId"]
+        if loan_id in repaid_by_loan:
+            history.append({"status": "repaid", "repayment_delay_days": 0})
+        elif loan_id in defaulted_by_loan:
+            history.append({"status": "defaulted", "repayment_delay_days": None})
+
+    return history
 
 
-def simulate_get_protocol_interactions(wallet_address):
-    """
-    Simulates fetching data on other protocol interactions (staking, LP, governance).
-    """
-    is_staker = False
-    is_lp_provider = False
-    num_governance_votes = 0
-    total_staked_sei = 0.0
-    total_lp_value_usd = 0.0
+def get_protocol_interactions(wallet_address):
+    """Retrieve staking, LP and governance participation information for an address."""
 
-    if wallet_address.startswith("0x1"):
-        is_staker = True
-        is_lp_provider = True
-        num_governance_votes = random.randint(5, 20)
-        total_staked_sei = random.uniform(1000, 10000)
-        total_lp_value_usd = random.uniform(5000, 50000)
-    elif wallet_address.startswith("0x2"):
-        is_staker = True
-        num_governance_votes = random.randint(1, 5)
-        total_staked_sei = random.uniform(100, 1000)
-    else: # Default for other random addresses
-        if random.random() < 0.4: is_staker = True
-        if random.random() < 0.2: is_lp_provider = True
-        num_governance_votes = random.randint(0, 3)
-        total_staked_sei = random.uniform(0, 500)
-        total_lp_value_usd = random.uniform(0, 2000)
+    rpc = os.environ.get("SEI_RPC_URL", "https://evm-rpc.sei-apis.com")
+    staking_address = os.environ.get("SEI_STAKING_CONTRACT")
+    staking_abi_path = os.environ.get("SEI_STAKING_ABI")
+    lp_token_address = os.environ.get("SEI_LP_TOKEN_CONTRACT")
+    lp_token_abi_path = os.environ.get("SEI_LP_TOKEN_ABI")
+    gov_address = os.environ.get("SEI_GOVERNANCE_CONTRACT")
+    gov_abi_path = os.environ.get("SEI_GOVERNANCE_ABI")
+
+    if not all([staking_address, staking_abi_path, lp_token_address, lp_token_abi_path, gov_address, gov_abi_path]):
+        raise ValueError("Staking, LP token and governance contract details must be provided via environment variables")
+
+    with open(staking_abi_path) as f:
+        staking_abi = json.load(f)
+    with open(lp_token_abi_path) as f:
+        lp_token_abi = json.load(f)
+    with open(gov_abi_path) as f:
+        gov_abi = json.load(f)
+
+    w3 = Web3(Web3.HTTPProvider(rpc))
+
+    staking = w3.eth.contract(address=Web3.to_checksum_address(staking_address), abi=staking_abi)
+    lp_token = w3.eth.contract(address=Web3.to_checksum_address(lp_token_address), abi=lp_token_abi)
+    governance = w3.eth.contract(address=Web3.to_checksum_address(gov_address), abi=gov_abi)
+
+    staked = staking.functions.balanceOf(wallet_address).call()
+    lp_balance = lp_token.functions.balanceOf(wallet_address).call()
+
+    votes = governance.events.VoteCast.create_filter(fromBlock=0, argument_filters={"voter": wallet_address}).get_all_entries()
+
+    is_staker = staked > 0
+    is_lp_provider = lp_balance > 0
+    num_governance_votes = len(votes)
+
+    # Convert values to user friendly units assuming token has 18 decimals
+    total_staked_sei = staked / 1e18
+    total_lp_value_usd = lp_balance / 1e18  # price conversion should be added
 
     return {
         "is_staker": is_staker,
         "is_lp_provider": is_lp_provider,
         "num_governance_votes": num_governance_votes,
         "total_staked_sei": total_staked_sei,
-        "total_lp_value_usd": total_lp_value_usd
+        "total_lp_value_usd": total_lp_value_usd,
     }
 
 # --- DeFiCreditScorer Class ---
@@ -367,12 +389,12 @@ class DeFiCreditScorer:
         detailed_scores = []
         current_score = self.BASE_SCORE
 
-        # 1. Fetch data (using simulation functions for now)
+        # 1. Fetch data from the Sei network
         wallet_creation_date = simulate_get_wallet_creation_date(wallet_address)
         txn_history = simulate_get_transaction_history(wallet_address)
         wallet_balances = simulate_get_wallet_balances(wallet_address)
-        loan_history = simulate_get_loan_repayment_history(wallet_address)
-        protocol_interactions = simulate_get_protocol_interactions(wallet_address)
+        loan_history = get_loan_repayment_history(wallet_address)
+        protocol_interactions = get_protocol_interactions(wallet_address)
 
         # 2. Calculate scores for each factor
         score, description = self._calculate_account_age_score(wallet_creation_date)

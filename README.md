@@ -19,3 +19,28 @@ For Lenders: Data-driven insights reduce the chance of defaults and improve lend
 For Borrowers: A fair evaluation based on on-chain activity could unlock better loan terms for users with strong DeFi track records.
 
 For Sei: Boosts trust and adoption of DeFi lending by addressing a critical pain point, leveraging Sei’s fast transaction speeds to process large datasets efficiently.
+
+## Developer Setup
+
+The backend relies on direct queries to Sei's EVM RPC endpoint at
+`https://evm-rpc.sei-apis.com`.  Contract addresses and ABIs are read from
+environment variables so the scorer can fetch on-chain information about loans,
+staking positions, LP tokens and governance events.
+
+Required environment variables:
+
+```
+SEI_LENDING_CONTRACT    # Lending protocol contract address
+SEI_LENDING_ABI         # Path to JSON ABI for the lending contract
+SEI_STAKING_CONTRACT    # Staking contract address
+SEI_STAKING_ABI         # Path to staking contract ABI
+SEI_LP_TOKEN_CONTRACT   # LP token contract address
+SEI_LP_TOKEN_ABI        # Path to LP token ABI
+SEI_GOVERNANCE_CONTRACT # Governance contract address
+SEI_GOVERNANCE_ABI      # Path to governance contract ABI
+SEI_RPC_URL             # Optional custom RPC endpoint (defaults to Sei public RPC)
+```
+
+You may use an indexing service if available to avoid scanning the entire chain
+when building filters.  Set the above variables accordingly before running the
+Python credit scorer.
