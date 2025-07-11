@@ -2,7 +2,10 @@ import datetime
 import random
 import json
 import os
+import web3
 from web3 import Web3
+from dotenv import load_dotenv
+load_dotenv()
 
 # --- Placeholder Data Simulation (Replace with actual Sei Network API calls) ---
 # In a real application, these functions would interact with Sei's EVM RPC
@@ -93,56 +96,94 @@ def simulate_get_wallet_balances(wallet_address):
             balances["SOME_ALT_COIN"] = random.uniform(10, 200)
     return balances
 
-def get_loan_repayment_history(wallet_address, from_block=0, to_block="latest"):
-    """Fetch loan repayment events for ``wallet_address`` from the Sei EVM RPC.
+# In credit_scorer.py, replace the old function with this one.
+# Make sure your 'contract' object is initialized with the yei-pool.json ABI.
 
-    Parameters
-    ----------
-    wallet_address: str
-        Address to query.
-    from_block: int, optional
-        Starting block for the search.
-    to_block: int or str, optional
-        End block for the search.
-
-    Returns
-    -------
-    list[dict]
-        A list of loan records with ``status`` (``"repaid"``, ``"defaulted"``) and
-        ``repayment_delay_days`` (``None`` if defaulted).
+def get_loan_repayment_history(wallet_address, contract):
     """
-
-    rpc = os.environ.get("SEI_RPC_URL", "https://evm-rpc.sei-apis.com")
-    lending_address = os.environ.get("SEI_LENDING_CONTRACT")
-    lending_abi_path = os.environ.get("SEI_LENDING_ABI")
-    if not lending_address or not lending_abi_path:
-        raise ValueError("SEI_LENDING_CONTRACT and SEI_LENDING_ABI env vars are required")
-
-    with open(lending_abi_path) as f:
-        lending_abi = json.load(f)
-
-    w3 = Web3(Web3.HTTPProvider(rpc))
-    contract = w3.eth.contract(address=Web3.to_checksum_address(lending_address), abi=lending_abi)
-
-    issued = contract.events.LoanIssued.create_filter(fromBlock=from_block, toBlock=to_block,
-                                                     argument_filters={"borrower": wallet_address}).get_all_entries()
-    repaid = contract.events.LoanRepaid.create_filter(fromBlock=from_block, toBlock=to_block,
-                                                     argument_filters={"borrower": wallet_address}).get_all_entries()
-    defaulted = contract.events.LoanDefaulted.create_filter(fromBlock=from_block, toBlock=to_block,
-                                                           argument_filters={"borrower": wallet_address}).get_all_entries()
-
+    Fetches and combines borrow, repay, and liquidation events for a given wallet
+    from the Aave V3-style lending pool using the correct event names from the ABI.
+    """
     history = []
-    repaid_by_loan = {e["args"]["loanId"]: e for e in repaid}
-    defaulted_by_loan = {e["args"]["loanId"]: e for e in defaulted}
+    from_block = 'earliest'
+    to_block = 'latest'
 
-    for evt in issued:
-        loan_id = evt["args"]["loanId"]
-        if loan_id in repaid_by_loan:
-            history.append({"status": "repaid", "repayment_delay_days": 0})
-        elif loan_id in defaulted_by_loan:
-            history.append({"status": "defaulted", "repayment_delay_days": None})
+    print(f"🔍 Fetching transaction history for {wallet_address}...")
+    try:
+        # 1. CORRECTED: Use the 'Borrow' event instead of 'LoanIssued'.
+        # A 'Borrow' event is emitted when a user takes a loan.
+        # We filter by 'onBehalfOf', which is the address that receives the loan.
+        borrow_filter = contract.events.Borrow.create_filter(
+            fromBlock=from_block,
+            toBlock=to_block,
+            argument_filters={'onBehalfOf': wallet_address}
+        )
+        borrow_events = borrow_filter.get_all_entries()
+        for event in borrow_events:
+            history.append({
+                'type': 'Borrow',
+                'user': event['args']['onBehalfOf'],
+                'reserve': event['args']['reserve'],
+                'amount': event['args']['amount'],
+                'blockNumber': event['blockNumber'],
+                'transactionHash': event['transactionHash'].hex()
+            })
+        print(f"  - Found {len(borrow_events)} Borrow event(s).")
 
-    return history
+        # 2. CORRECTED: Use the 'Repay' event instead of 'LoanRepaid'.
+        # A 'Repay' event is emitted when a loan is paid back.
+        # We filter by 'user', which is the address whose debt is being repaid.
+        repay_filter = contract.events.Repay.create_filter(
+            fromBlock=from_block,
+            toBlock=to_block,
+            argument_filters={'user': wallet_address}
+        )
+        repay_events = repay_filter.get_all_entries()
+        for event in repay_events:
+            history.append({
+                'type': 'Repay',
+                'user': event['args']['user'],
+                'repayer': event['args']['repayer'],
+                'reserve': event['args']['reserve'],
+                'amount': event['args']['amount'],
+                'blockNumber': event['blockNumber'],
+                'transactionHash': event['transactionHash'].hex()
+            })
+        print(f"  - Found {len(repay_events)} Repay event(s).")
+
+        # 3. CORRECTED: Use 'LiquidationCall' instead of 'LoanDefaulted'.
+        # A 'LiquidationCall' event indicates a user's position was liquidated,
+        # which is the Aave equivalent of a default.
+        # We filter by 'user', which is the address being liquidated.
+        liquidation_filter = contract.events.LiquidationCall.create_filter(
+            fromBlock=from_block,
+            toBlock=to_block,
+            argument_filters={'user': wallet_address}
+        )
+        liquidation_events = liquidation_filter.get_all_entries()
+        for event in liquidation_events:
+            history.append({
+                'type': 'Liquidation',
+                'user': event['args']['user'],
+                'collateralAsset': event['args']['collateralAsset'],
+                'debtAsset': event['args']['debtAsset'],
+                'debtToCover': event['args']['debtToCover'],
+                'liquidatedCollateralAmount': event['args']['liquidatedCollateralAmount'],
+                'liquidator': event['args']['liquidator'],
+                'blockNumber': event['blockNumber'],
+                'transactionHash': event['transactionHash'].hex()
+            })
+        print(f"  - Found {len(liquidation_events)} LiquidationCall event(s).")
+
+        # Sort the combined history by block number to ensure chronological order.
+        history.sort(key=lambda x: x['blockNumber'])
+        
+        return history
+
+    except Exception as e:
+        # This will catch other potential issues during event fetching.
+        print(f"An error occurred while fetching event logs: {e}")
+        raise
 
 
 def get_protocol_interactions(wallet_address):
@@ -193,17 +234,40 @@ def get_protocol_interactions(wallet_address):
         "total_lp_value_usd": total_lp_value_usd,
     }
 
-# --- DeFiCreditScorer Class ---
-
 class DeFiCreditScorer:
     BASE_SCORE = 500  # Starting score
 
     def __init__(self):
         """
-        Initializes the credit scorer.
-        In a real application, you might initialize a connection to the Sei RPC here.
+        Constructor for the DeFiCreditScorer.
+        This now includes the setup for Web3 connection and contract initialization.
         """
-        print("DeFiCreditScorer initialized. Remember to replace simulation functions with real Sei API calls!")
+        # --- 1. SET UP CONNECTION TO THE BLOCKCHAIN ---
+        # Replace with the actual RPC URL for the Sei Network or your test environment
+        self.rpc_url = "https://evm-rpc.sei-apis.com/" # Official Sei EVM RPC
+        self.w3 = Web3(Web3.HTTPProvider(self.rpc_url))
+
+        if not self.w3.is_connected():
+            raise ConnectionError("Failed to connect to the Sei EVM RPC.")
+
+        # --- 2. DEFINE CONTRACT ADDRESS AND ABI ---
+        # Replace with the actual deployed lending pool contract address
+        self.contract_address = "0xYourLendingPoolContractAddressHere" # <--- IMPORTANT: REPLACE THIS
+        
+        # Load the contract's ABI (Application Binary Interface) from the JSON file.
+        # Make sure 'yei-pool.json' is in the same directory as your script.
+        with open('yei-pool.json', 'r') as f:
+            contract_abi = json.load(f)
+
+        # --- 3. CREATE AND STORE THE CONTRACT OBJECT ---
+        # This creates the contract object and assigns it to self.contract
+        # Now, other methods in this class can access it using self.contract
+        self.contract = self.w3.eth.contract(
+            address=self.w3.to_checksum_address(self.contract_address),
+            abi=contract_abi
+        )
+
+        print("DeFiCreditScorer initialized and connected to the contract.")
 
     def _calculate_account_age_score(self, wallet_creation_date):
         """
@@ -393,7 +457,7 @@ class DeFiCreditScorer:
         wallet_creation_date = simulate_get_wallet_creation_date(wallet_address)
         txn_history = simulate_get_transaction_history(wallet_address)
         wallet_balances = simulate_get_wallet_balances(wallet_address)
-        loan_history = get_loan_repayment_history(wallet_address)
+        loan_history = get_loan_repayment_history(wallet_address, self.contract)
         protocol_interactions = get_protocol_interactions(wallet_address)
 
         # 2. Calculate scores for each factor
