@@ -5,12 +5,11 @@ import os
 import web3
 from web3 import Web3
 from dotenv import load_dotenv
+import time
+
 load_dotenv()
 
 # --- Placeholder Data Simulation (Replace with actual Sei Network API calls) ---
-# In a real application, these functions would interact with Sei's EVM RPC
-# (e.g., using web3.py or ethers.js equivalents in Python) to fetch on-chain data.
-# You would need to connect to an RPC endpoint like 'https://evm-rpc.sei-apis.com'.
 
 def simulate_get_wallet_creation_date(wallet_address):
     """
@@ -18,50 +17,43 @@ def simulate_get_wallet_creation_date(wallet_address):
     In a real scenario, this would involve querying the blockchain for the
     first transaction of the wallet address.
     """
-    # For demonstration, we'll make the age somewhat dependent on the first character
-    # to show different scores for different "types" of addresses.
-    # In a real scenario, this would be based on actual on-chain data.
-    if wallet_address.startswith("0x1"): # Older wallet
+    if wallet_address.startswith("0x1"):  # Older wallet
         return datetime.datetime.now() - datetime.timedelta(days=random.randint(365 * 2, 365 * 5))
-    elif wallet_address.startswith("0x2"): # Medium age wallet
+    elif wallet_address.startswith("0x2"):  # Medium age wallet
         return datetime.datetime.now() - datetime.timedelta(days=random.randint(180, 365 * 1))
-    elif wallet_address.startswith("0x3"): # Newer wallet, potentially risky
+    elif wallet_address.startswith("0x3"):  # Newer wallet, potentially risky
         return datetime.datetime.now() - datetime.timedelta(days=random.randint(1, 179))
-    else: # Default for other random addresses
-        return datetime.datetime.now() - datetime.timedelta(days=random.randint(30, 730)) # Mix of ages
-
+    else:  # Default for other random addresses
+        return datetime.datetime.now() - datetime.timedelta(days=random.randint(30, 730))
 
 def simulate_get_transaction_history(wallet_address, lookback_days=365):
     """
     Simulates fetching transaction history for a given wallet address.
-    In a real scenario, this would query Sei's RPC for transactions
-    associated with the address within the specified lookback period.
-    Returns a list of dictionaries, each representing a transaction.
     """
     num_txns = 0
     total_volume_usd = 0.0
     unique_contracts = set()
     suspicious_interaction = False
 
-    if wallet_address.startswith("0x1"): # High activity, good
+    if wallet_address.startswith("0x1"):  # High activity, good
         num_txns = random.randint(500, 2000)
         total_volume_usd = random.uniform(10000, 100000)
         unique_contracts = set(f"0xContract{i}" for i in range(random.randint(10, 30)))
-    elif wallet_address.startswith("0x2"): # Medium activity
+    elif wallet_address.startswith("0x2"):  # Medium activity
         num_txns = random.randint(100, 500)
         total_volume_usd = random.uniform(1000, 10000)
         unique_contracts = set(f"0xContract{i}" for i in range(random.randint(3, 9)))
-    elif wallet_address.startswith("0x3"): # Low activity, potentially suspicious
+    elif wallet_address.startswith("0x3"):  # Low activity, potentially suspicious
         num_txns = random.randint(5, 50)
         total_volume_usd = random.uniform(10, 500)
         unique_contracts = set(f"0xContract{i}" for i in range(random.randint(1, 2)))
-        if random.random() < 0.7: # Higher chance of suspicious interaction for "risky" addresses
+        if random.random() < 0.7:
             suspicious_interaction = True
-    else: # Default for other random addresses
+    else:  # Default for other random addresses
         num_txns = random.randint(20, 300)
         total_volume_usd = random.uniform(100, 5000)
         unique_contracts = set(f"0xContract{i}" for i in range(random.randint(2, 15)))
-        if random.random() < 0.1: # Small chance of suspicious interaction
+        if random.random() < 0.1:
             suspicious_interaction = True
 
     return {
@@ -74,51 +66,71 @@ def simulate_get_transaction_history(wallet_address, lookback_days=365):
 def simulate_get_wallet_balances(wallet_address):
     """
     Simulates fetching current wallet balances.
-    In a real scenario, this would query Sei's RPC for token balances
-    (e.g., SEI, stablecoins, other ERC-20 tokens).
-    Returns a dictionary of token balances.
     """
     balances = {}
-    if wallet_address.startswith("0x1"): # High value, good stablecoin ratio
+    if wallet_address.startswith("0x1"):  # High value, good stablecoin ratio
         balances["SEI"] = random.uniform(1000, 5000)
         balances["USDC"] = random.uniform(5000, 20000)
         balances["ETH"] = random.uniform(1, 5)
-    elif wallet_address.startswith("0x2"): # Medium value
+    elif wallet_address.startswith("0x2"):  # Medium value
         balances["SEI"] = random.uniform(100, 1000)
         balances["USDC"] = random.uniform(500, 5000)
-    elif wallet_address.startswith("0x3"): # Low value, mostly volatile
+    elif wallet_address.startswith("0x3"):  # Low value, mostly volatile
         balances["SEI"] = random.uniform(10, 100)
-        balances["USDT"] = random.uniform(0, 50) # Can be very low
-    else: # Default for other random addresses
+        balances["USDT"] = random.uniform(0, 50)
+    else:  # Default for other random addresses
         balances["SEI"] = random.uniform(50, 500)
         balances["USDC"] = random.uniform(100, 1000)
         if random.random() < 0.2:
             balances["SOME_ALT_COIN"] = random.uniform(10, 200)
+
     return balances
 
-# In credit_scorer.py, replace the old function with this one.
-# Make sure your 'contract' object is initialized with the yei-pool.json ABI.
+def get_batched_logs(event, from_block, to_block, batch_size=1000, **kwargs):
+    """
+    Fetches event logs in batches to avoid 'block range too large' errors.
+    """
+    all_logs = []
+    current = from_block
+    
+    while current <= to_block:
+        batch_end = min(current + batch_size - 1, to_block)
+        try:
+            logs = event.get_logs(from_block=current, to_block=batch_end, **kwargs)
+            all_logs.extend(logs)
+            print(f"   Fetched {len(logs)} events from blocks {current} to {batch_end}")
+        except Exception as e:
+            print(f"   Error fetching logs from blocks {current} to {batch_end}: {e}")
+        
+        current = batch_end + 1
+        # Small delay to avoid rate limiting
+        time.sleep(0.1)
+    
+    return all_logs
 
-def get_loan_repayment_history(wallet_address, contract):
+def get_loan_repayment_history(wallet_address, contract, w3):
     """
     Fetches and combines borrow, repay, and liquidation events for a given wallet
-    from the Aave V3-style lending pool using the correct event names from the ABI.
+    from the Aave V3-style lending pool using batched queries.
     """
     history = []
-    from_block = 'earliest'
-    to_block = 'latest'
-
+    
     print(f"🔍 Fetching transaction history for {wallet_address}...")
+    
     try:
-        # 1. CORRECTED: Use the 'Borrow' event instead of 'LoanIssued'.
-        # A 'Borrow' event is emitted when a user takes a loan.
-        # We filter by 'onBehalfOf', which is the address that receives the loan.
-        borrow_filter = contract.events.Borrow.create_filter(
-            fromBlock=from_block,
-            toBlock=to_block,
-            argument_filters={'onBehalfOf': wallet_address}
+        # Get the latest block number
+        latest_block = w3.eth.block_number
+        print(f"   Latest block: {latest_block}")
+        
+        # 1. Fetch Borrow events in batches
+        print("   Fetching Borrow events...")
+        borrow_events = get_batched_logs(
+            contract.events.Borrow(),
+            from_block=0,
+            to_block=latest_block,
+            argument_filters={'user': wallet_address}
         )
-        borrow_events = borrow_filter.get_all_entries()
+        
         for event in borrow_events:
             history.append({
                 'type': 'Borrow',
@@ -128,17 +140,17 @@ def get_loan_repayment_history(wallet_address, contract):
                 'blockNumber': event['blockNumber'],
                 'transactionHash': event['transactionHash'].hex()
             })
-        print(f"  - Found {len(borrow_events)} Borrow event(s).")
+        print(f"   Found {len(borrow_events)} Borrow event(s).")
 
-        # 2. CORRECTED: Use the 'Repay' event instead of 'LoanRepaid'.
-        # A 'Repay' event is emitted when a loan is paid back.
-        # We filter by 'user', which is the address whose debt is being repaid.
-        repay_filter = contract.events.Repay.create_filter(
-            fromBlock=from_block,
-            toBlock=to_block,
+        # 2. Fetch Repay events in batches
+        print("   Fetching Repay events...")
+        repay_events = get_batched_logs(
+            contract.events.Repay(),
+            from_block=0,
+            to_block=latest_block,
             argument_filters={'user': wallet_address}
         )
-        repay_events = repay_filter.get_all_entries()
+        
         for event in repay_events:
             history.append({
                 'type': 'Repay',
@@ -149,18 +161,17 @@ def get_loan_repayment_history(wallet_address, contract):
                 'blockNumber': event['blockNumber'],
                 'transactionHash': event['transactionHash'].hex()
             })
-        print(f"  - Found {len(repay_events)} Repay event(s).")
+        print(f"   Found {len(repay_events)} Repay event(s).")
 
-        # 3. CORRECTED: Use 'LiquidationCall' instead of 'LoanDefaulted'.
-        # A 'LiquidationCall' event indicates a user's position was liquidated,
-        # which is the Aave equivalent of a default.
-        # We filter by 'user', which is the address being liquidated.
-        liquidation_filter = contract.events.LiquidationCall.create_filter(
-            fromBlock=from_block,
-            toBlock=to_block,
+        # 3. Fetch LiquidationCall events in batches
+        print("   Fetching LiquidationCall events...")
+        liquidation_events = get_batched_logs(
+            contract.events.LiquidationCall(),
+            from_block=0,
+            to_block=latest_block,
             argument_filters={'user': wallet_address}
         )
-        liquidation_events = liquidation_filter.get_all_entries()
+        
         for event in liquidation_events:
             history.append({
                 'type': 'Liquidation',
@@ -173,65 +184,27 @@ def get_loan_repayment_history(wallet_address, contract):
                 'blockNumber': event['blockNumber'],
                 'transactionHash': event['transactionHash'].hex()
             })
-        print(f"  - Found {len(liquidation_events)} LiquidationCall event(s).")
+        print(f"   Found {len(liquidation_events)} LiquidationCall event(s).")
 
-        # Sort the combined history by block number to ensure chronological order.
+        # Sort the combined history by block number to ensure chronological order
         history.sort(key=lambda x: x['blockNumber'])
-        
         return history
 
     except Exception as e:
-        # This will catch other potential issues during event fetching.
         print(f"An error occurred while fetching event logs: {e}")
-        raise
-
+        # Return empty history instead of raising to allow the script to continue
+        return []
 
 def get_protocol_interactions(wallet_address):
     """Retrieve staking, LP and governance participation information for an address."""
-
-    rpc = os.environ.get("SEI_RPC_URL", "https://evm-rpc.sei-apis.com")
-    staking_address = os.environ.get("SEI_STAKING_CONTRACT")
-    staking_abi_path = os.environ.get("SEI_STAKING_ABI")
-    lp_token_address = os.environ.get("SEI_LP_TOKEN_CONTRACT")
-    lp_token_abi_path = os.environ.get("SEI_LP_TOKEN_ABI")
-    gov_address = os.environ.get("SEI_GOVERNANCE_CONTRACT")
-    gov_abi_path = os.environ.get("SEI_GOVERNANCE_ABI")
-
-    if not all([staking_address, staking_abi_path, lp_token_address, lp_token_abi_path, gov_address, gov_abi_path]):
-        raise ValueError("Staking, LP token and governance contract details must be provided via environment variables")
-
-    with open(staking_abi_path) as f:
-        staking_abi = json.load(f)
-    with open(lp_token_abi_path) as f:
-        lp_token_abi = json.load(f)
-    with open(gov_abi_path) as f:
-        gov_abi = json.load(f)
-
-    w3 = Web3(Web3.HTTPProvider(rpc))
-
-    staking = w3.eth.contract(address=Web3.to_checksum_address(staking_address), abi=staking_abi)
-    lp_token = w3.eth.contract(address=Web3.to_checksum_address(lp_token_address), abi=lp_token_abi)
-    governance = w3.eth.contract(address=Web3.to_checksum_address(gov_address), abi=gov_abi)
-
-    staked = staking.functions.balanceOf(wallet_address).call()
-    lp_balance = lp_token.functions.balanceOf(wallet_address).call()
-
-    votes = governance.events.VoteCast.create_filter(fromBlock=0, argument_filters={"voter": wallet_address}).get_all_entries()
-
-    is_staker = staked > 0
-    is_lp_provider = lp_balance > 0
-    num_governance_votes = len(votes)
-
-    # Convert values to user friendly units assuming token has 18 decimals
-    total_staked_sei = staked / 1e18
-    total_lp_value_usd = lp_balance / 1e18  # price conversion should be added
-
+    # For simulation purposes, return mock data
+    # In a real implementation, this would query actual contracts
     return {
-        "is_staker": is_staker,
-        "is_lp_provider": is_lp_provider,
-        "num_governance_votes": num_governance_votes,
-        "total_staked_sei": total_staked_sei,
-        "total_lp_value_usd": total_lp_value_usd,
+        "is_staker": random.choice([True, False]),
+        "is_lp_provider": random.choice([True, False]),
+        "num_governance_votes": random.randint(0, 10),
+        "total_staked_sei": random.uniform(0, 1000),
+        "total_lp_value_usd": random.uniform(0, 5000),
     }
 
 class DeFiCreditScorer:
@@ -243,94 +216,69 @@ class DeFiCreditScorer:
         This now includes the setup for Web3 connection and contract initialization.
         """
         # --- 1. SET UP CONNECTION TO THE BLOCKCHAIN ---
-        # Replace with the actual RPC URL for the Sei Network or your test environment
-        self.rpc_url = "https://evm-rpc.sei-apis.com/" # Official Sei EVM RPC
+        self.rpc_url = "https://evm-rpc.sei-apis.com/"
         self.w3 = Web3(Web3.HTTPProvider(self.rpc_url))
-
+        
         if not self.w3.is_connected():
             raise ConnectionError("Failed to connect to the Sei EVM RPC.")
 
         # --- 2. DEFINE CONTRACT ADDRESS AND ABI ---
-        # Replace with the actual deployed lending pool contract address
-        self.contract_address = "0xYourLendingPoolContractAddressHere" # <--- IMPORTANT: REPLACE THIS
+        # Replace with your actual deployed lending pool contract address
+        self.contract_address = "0xA1b2C3d4E5f678901234567890abcdef12345678"
         
-        # Load the contract's ABI (Application Binary Interface) from the JSON file.
-        # Make sure 'yei-pool.json' is in the same directory as your script.
+        # Load the contract's ABI from the JSON file
         with open('yei-pool.json', 'r') as f:
             contract_abi = json.load(f)
 
         # --- 3. CREATE AND STORE THE CONTRACT OBJECT ---
-        # This creates the contract object and assigns it to self.contract
-        # Now, other methods in this class can access it using self.contract
         self.contract = self.w3.eth.contract(
             address=self.w3.to_checksum_address(self.contract_address),
             abi=contract_abi
         )
-
+        
         print("DeFiCreditScorer initialized and connected to the contract.")
 
     def _calculate_account_age_score(self, wallet_creation_date):
-        """
-        Calculates score based on account age.
-        """
+        """Calculates score based on account age."""
         age_days = (datetime.datetime.now() - wallet_creation_date).days
         score_contribution = 0
-        if age_days < 90:  # Less than 3 months
+        
+        if age_days < 90:
             score_contribution = -50
-        elif 90 <= age_days < 180: # 3-6 months
+        elif 90 <= age_days < 180:
             score_contribution = -20
-        elif 180 <= age_days < 365: # 6-12 months
+        elif 180 <= age_days < 365:
             score_contribution = 10
-        elif 365 <= age_days < 730: # 1-2 years
+        elif 365 <= age_days < 730:
             score_contribution = 25
-        else: # 2+ years
+        else:
             score_contribution = 40
+            
         return score_contribution, f"Account Age ({age_days} days)"
 
     def _calculate_repayment_behavior_score(self, loan_history):
-        """
-        Calculates score based on historical loan repayment behavior.
-        """
+        """Calculates score based on historical loan repayment behavior."""
         if not loan_history:
             return 0, "Repayment Behavior (No prior loans)"
-
-        total_loans = len(loan_history)
-        successful_repayments = sum(1 for loan in loan_history if loan["status"] == "repaid")
-        defaults = sum(1 for loan in loan_history if loan["status"] == "defaulted")
-        late_repayments = sum(1 for loan in loan_history if loan["status"] == "late")
-        total_delay_days = sum(loan["repayment_delay_days"] for loan in loan_history if loan["status"] == "late" and loan["repayment_delay_days"] is not None)
-
-        score_contribution = 0
-        repayment_rate = (successful_repayments / total_loans) * 100 if total_loans > 0 else 0
-
-        if defaults > 0:
-            score_contribution -= (defaults * 150) # Significant penalty per default
-            return score_contribution, f"Repayment Behavior ({defaults} defaults)"
-
-        if repayment_rate == 100:
-            score_contribution += 100
-        elif repayment_rate >= 90:
-            score_contribution += 70
-        elif repayment_rate >= 70:
-            score_contribution += 30
-        elif repayment_rate >= 50:
-            score_contribution -= 20
-        else:
-            score_contribution -= 50
-
-        if late_repayments > 0:
-            avg_delay = total_delay_days / late_repayments
-            if avg_delay > 7:
-                score_contribution -= 20
-            elif avg_delay > 3:
-                score_contribution -= 5
         
-        return score_contribution, f"Repayment Behavior ({repayment_rate:.0f}% success, {late_repayments} late)"
+        # For simulation, we'll create mock repayment data based on the events
+        # In a real implementation, you'd analyze the actual loan lifecycle
+        total_loans = len([event for event in loan_history if event['type'] == 'Borrow'])
+        liquidations = len([event for event in loan_history if event['type'] == 'Liquidation'])
+        
+        if total_loans == 0:
+            return 0, "Repayment Behavior (No loans found)"
+        
+        score_contribution = 0
+        if liquidations > 0:
+            score_contribution -= (liquidations * 150)
+            return score_contribution, f"Repayment Behavior ({liquidations} liquidations)"
+        else:
+            score_contribution += 50  # Bonus for no liquidations
+            return score_contribution, f"Repayment Behavior (No liquidations, {total_loans} loans)"
 
     def _calculate_transaction_history_score(self, txn_history):
-        """
-        Calculates score based on transaction frequency, volume, and patterns.
-        """
+        """Calculates score based on transaction frequency, volume, and patterns."""
         score_contribution = 0
         num_txns = txn_history["num_transactions"]
         total_volume_usd = txn_history["total_volume_usd"]
@@ -365,26 +313,21 @@ class DeFiCreditScorer:
 
         # Suspicious Interaction Flag
         if suspicious_interaction:
-            score_contribution -= 300 # Severe penalty
+            score_contribution -= 300
 
         return score_contribution, f"Transaction History (Txns: {num_txns}, Volume: ${total_volume_usd:,.0f}, Contracts: {num_unique_contracts})"
 
     def _calculate_wallet_balance_score(self, balances):
-        """
-        Calculates score based on wallet balances, liquidity, and diversity.
-        """
+        """Calculates score based on wallet balances, liquidity, and diversity."""
         total_value_usd = 0
         stablecoin_value_usd = 0
         num_unique_tokens = 0
 
-        # Assuming USDC/USDT are stablecoins for this simulation
         for token, amount in balances.items():
-            # In a real scenario, you'd fetch real-time prices for each token
-            # For simulation, we'll assume SEI/ETH have some value, stablecoins are 1 USD
             if token == "SEI":
-                total_value_usd += amount * 0.5 # Example SEI price
+                total_value_usd += amount * 0.5
             elif token == "ETH":
-                total_value_usd += amount * 3000 # Example ETH price
+                total_value_usd += amount * 3000
             elif token in ["USDC", "USDT"]:
                 total_value_usd += amount
                 stablecoin_value_usd += amount
@@ -418,9 +361,7 @@ class DeFiCreditScorer:
         return score_contribution, f"Wallet Balances (Total: ${total_value_usd:,.0f}, Stablecoin Ratio: {stablecoin_ratio:.0f}%)"
 
     def _calculate_protocol_interaction_score(self, protocol_interactions):
-        """
-        Calculates score based on engagement with other DeFi protocols.
-        """
+        """Calculates score based on engagement with other DeFi protocols."""
         score_contribution = 0
         is_staker = protocol_interactions["is_staker"]
         is_lp_provider = protocol_interactions["is_lp_provider"]
@@ -457,7 +398,7 @@ class DeFiCreditScorer:
         wallet_creation_date = simulate_get_wallet_creation_date(wallet_address)
         txn_history = simulate_get_transaction_history(wallet_address)
         wallet_balances = simulate_get_wallet_balances(wallet_address)
-        loan_history = get_loan_repayment_history(wallet_address, self.contract)
+        loan_history = get_loan_repayment_history(wallet_address, self.contract, self.w3)
         protocol_interactions = get_protocol_interactions(wallet_address)
 
         # 2. Calculate scores for each factor
@@ -481,7 +422,7 @@ class DeFiCreditScorer:
         current_score += score
         detailed_scores.append({"factor": "Protocol Interactions", "contribution": score, "description": description})
 
-        # Ensure score doesn't go below 0 or above 1000 (or your desired max)
+        # Ensure score doesn't go below 0 or above 1000
         final_score = max(0, min(1000, current_score))
 
         # Determine risk category
@@ -502,7 +443,7 @@ class DeFiCreditScorer:
             "credit_score": final_score,
             "risk_category": risk_category,
             "detailed_scores": detailed_scores,
-            "raw_data_simulated": { # For debugging/transparency, showing what was simulated
+            "raw_data_simulated": {
                 "wallet_creation_date": wallet_creation_date.isoformat(),
                 "transaction_history": txn_history,
                 "wallet_balances": wallet_balances,
@@ -514,33 +455,30 @@ class DeFiCreditScorer:
 # --- Dynamic Example Usage ---
 if __name__ == "__main__":
     scorer = DeFiCreditScorer()
-
+    
     print("\n--- AI-Powered DeFi Risk Assessment Tool (Simulated) ---")
     print("Enter a Sei wallet address to get its simulated credit score.")
     print("Note: This uses simulated data. For real data, you need to integrate with Sei Network's RPC.")
     print("Try addresses starting with '0x1' for good scores, '0x2' for medium, '0x3' for potentially risky.")
     print("You can also enter any other valid-looking hex address for a mixed simulated result.")
-
+    
     while True:
         wallet_input = input("\nEnter Sei Wallet Address (or 'quit' to exit): ").strip()
+        
         if wallet_input.lower() == 'quit':
             break
-
-        # Basic validation for a hex address (starts with 0x and is long enough)
-        if not (wallet_input.startswith("0x") and len(wallet_input) >= 42): # Typical EVM address length
+        
+        # Basic validation for a hex address
+        if not (wallet_input.startswith("0x") and len(wallet_input) >= 42):
             print("Invalid wallet address format. Please enter a valid hex address (e.g., 0x...).")
             continue
-
+        
         print(f"\n--- Assessing Wallet: {wallet_input} ---")
         score_result = scorer.calculate_credit_score(wallet_input)
         
         print(f"\nSummary for {wallet_input}:")
-        print(f"  Credit Score: {score_result['credit_score']}")
-        print(f"  Risk Category: {score_result['risk_category']}")
-        print("\n  Detailed Contributions:")
+        print(f" Credit Score: {score_result['credit_score']}")
+        print(f" Risk Category: {score_result['risk_category']}")
+        print("\n Detailed Contributions:")
         for detail in score_result['detailed_scores']:
-            print(f"    - {detail['factor']}: {detail['contribution']} points ({detail['description']})")
-        
-        # Optional: Print full JSON for detailed debugging
-        # print("\n--- Full JSON Result ---")
-        # print(json.dumps(score_result, indent=4))
+            print(f" - {detail['factor']}: {detail['contribution']} points ({detail['description']})")

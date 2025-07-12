@@ -39,7 +39,8 @@ def get_wallet_balance(wallet_address):
         driver.quit()
 
 # User input for wallet address
-wallet_address = "0x6Ae3539c7BB31AbCaCc2403e7F6091BC43D825FF"
+wallet_address = "0x6Ae3539c7BB31AbCaCc2403e7F6091BC43D825FF"  # can also use "0x2a45907f94df93388801AE72fE810eac75926a1d"
 
 # Call the function to get the wallet balance
 get_wallet_balance(wallet_address)
+
