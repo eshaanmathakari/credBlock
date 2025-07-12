@@ -9,6 +9,30 @@ import time
 
 load_dotenv()
 
+# File to store the last processed block number in the current working directory
+LAST_PROCESSED_BLOCK_FILE = os.path.join(os.getcwd(), "last_processed_block.txt")
+
+# --- Helper functions for managing last processed block ---
+def save_last_processed_block(block_number):
+    try:
+        with open(LAST_PROCESSED_BLOCK_FILE, "w") as f:
+            f.write(str(block_number))
+        print(f"Saved last processed block: {block_number}")
+    except IOError as e:
+        print(f"Error saving last processed block: {e}")
+
+def load_last_processed_block():
+    if os.path.exists(LAST_PROCESSED_BLOCK_FILE):
+        try:
+            with open(LAST_PROCESSED_BLOCK_FILE, "r") as f:
+                block_number = int(f.read().strip())
+            print(f"Loaded last processed block: {block_number}")
+            return block_number
+        except (IOError, ValueError) as e:
+            print(f"Error loading last processed block: {e}. Starting from 0.")
+            return 0
+    return 0 # Start from block 0 if file doesn't exist
+
 # --- Placeholder Data Simulation (Replace with actual Sei Network API calls) ---
 
 def simulate_get_wallet_creation_date(wallet_address):
@@ -108,14 +132,14 @@ def get_batched_logs(event, from_block, to_block, batch_size=1000, **kwargs):
     
     return all_logs
 
-def get_loan_repayment_history(wallet_address, contract, w3):
+def get_loan_repayment_history(wallet_address, contract, w3, start_block=0):
     """
     Fetches and combines borrow, repay, and liquidation events for a given wallet
     from the Aave V3-style lending pool using batched queries.
     """
     history = []
     
-    print(f"🔍 Fetching transaction history for {wallet_address}...")
+    print(f"🔍 Fetching transaction history for {wallet_address} from block {start_block}...")
     
     try:
         # Get the latest block number
@@ -126,7 +150,7 @@ def get_loan_repayment_history(wallet_address, contract, w3):
         print("   Fetching Borrow events...")
         borrow_events = get_batched_logs(
             contract.events.Borrow(),
-            from_block=0,
+            from_block=start_block,
             to_block=latest_block,
             argument_filters={'user': wallet_address}
         )
@@ -146,7 +170,7 @@ def get_loan_repayment_history(wallet_address, contract, w3):
         print("   Fetching Repay events...")
         repay_events = get_batched_logs(
             contract.events.Repay(),
-            from_block=0,
+            from_block=start_block,
             to_block=latest_block,
             argument_filters={'user': wallet_address}
         )
@@ -167,7 +191,7 @@ def get_loan_repayment_history(wallet_address, contract, w3):
         print("   Fetching LiquidationCall events...")
         liquidation_events = get_batched_logs(
             contract.events.LiquidationCall(),
-            from_block=0,
+            from_block=start_block,
             to_block=latest_block,
             argument_filters={'user': wallet_address}
         )
@@ -188,6 +212,10 @@ def get_loan_repayment_history(wallet_address, contract, w3):
 
         # Sort the combined history by block number to ensure chronological order
         history.sort(key=lambda x: x['blockNumber'])
+        
+        # Save the latest block processed for the next run
+        save_last_processed_block(latest_block)
+
         return history
 
     except Exception as e:
@@ -394,11 +422,14 @@ class DeFiCreditScorer:
         detailed_scores = []
         current_score = self.BASE_SCORE
 
+        # Load the last processed block number
+        start_block_for_events = load_last_processed_block()
+
         # 1. Fetch data from the Sei network
         wallet_creation_date = simulate_get_wallet_creation_date(wallet_address)
         txn_history = simulate_get_transaction_history(wallet_address)
         wallet_balances = simulate_get_wallet_balances(wallet_address)
-        loan_history = get_loan_repayment_history(wallet_address, self.contract, self.w3)
+        loan_history = get_loan_repayment_history(wallet_address, self.contract, self.w3, start_block=start_block_for_events)
         protocol_interactions = get_protocol_interactions(wallet_address)
 
         # 2. Calculate scores for each factor
@@ -470,7 +501,7 @@ if __name__ == "__main__":
         
         # Basic validation for a hex address
         if not (wallet_input.startswith("0x") and len(wallet_input) >= 42):
-            print("Invalid wallet address format. Please enter a valid hex address (e.g., 0x...).")
+            print("Invalid wallet address format. Please enter a valid hex address (e.g., 0x...). ")
             continue
         
         print(f"\n--- Assessing Wallet: {wallet_input} ---")
@@ -482,3 +513,5 @@ if __name__ == "__main__":
         print("\n Detailed Contributions:")
         for detail in score_result['detailed_scores']:
             print(f" - {detail['factor']}: {detail['contribution']} points ({detail['description']})")
+
+
