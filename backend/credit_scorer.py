@@ -1,517 +1,315 @@
-import datetime
-import random
+"""
+Credit-scoring engine for Sei wallets – FINAL FAST VERSION
+• automatic 2 000-block batching (provider limit)
+• starts scan at wallet’s first ever tx block
+• re-uses coin_balance.get_wallet_balance
+"""
+
+from __future__ import annotations
+
+import datetime as _dt
 import json
-import os
-import web3
-from web3 import Web3
-from dotenv import load_dotenv
 import time
+from dataclasses import dataclass
+from typing import Any, Dict, List, Set, Tuple
 
-load_dotenv()
+import requests
+from web3 import Web3
 
-# File to store the last processed block number in the current working directory
-LAST_PROCESSED_BLOCK_FILE = os.path.join(os.getcwd(), "last_processed_block.txt")
+from coin_balance import get_wallet_balance  # ← reuse working routine
 
-# --- Helper functions for managing last processed block ---
-def save_last_processed_block(block_number):
-    try:
-        with open(LAST_PROCESSED_BLOCK_FILE, "w") as f:
-            f.write(str(block_number))
-        print(f"Saved last processed block: {block_number}")
-    except IOError as e:
-        print(f"Error saving last processed block: {e}")
 
-def load_last_processed_block():
-    if os.path.exists(LAST_PROCESSED_BLOCK_FILE):
+# --------------------------------------------------------------------------- #
+# 1.  RPC / Explorer helpers
+# --------------------------------------------------------------------------- #
+
+RPC_URL = "https://evm-rpc.sei-apis.com"
+EXPLORER = "https://sei.blockscout.com/api/v2/addresses"
+HEADERS = {"accept": "application/json"}
+
+MAX_BLOCK_RANGE = 2_000  # enforced by Sei RPC
+
+
+def _fetch_json(url: str) -> Dict[str, Any]:
+    resp = requests.get(url, headers=HEADERS, timeout=10)
+    resp.raise_for_status()
+    return resp.json()
+
+
+# --------------------------------------------------------------------------- #
+# 2.  Sei provider – light wrapper around Web3 + explorer
+# --------------------------------------------------------------------------- #
+
+@dataclass(slots=True)
+class SeiProvider:
+    w3: Web3
+
+    @classmethod
+    def connect(cls, rpc: str = RPC_URL) -> "SeiProvider":
+        w3 = Web3(Web3.HTTPProvider(rpc))
+        if not w3.is_connected():
+            raise ConnectionError("Cannot reach Sei RPC")
+        return cls(w3=w3)
+
+    # -------- wallet metadata -------------------------------------------- #
+
+    def first_tx_info(self, wallet: str) -> Tuple[_dt.datetime | None, int | None]:
+        """
+        Returns (timestamp, block_number) of the wallet's very first tx.
+        If the wallet has no tx history, both return None.
+        """
+        url = f"{EXPLORER}/{wallet}/transactions?limit=1&sort=asc"
+        items = _fetch_json(url).get("items", [])
+        if not items:
+            return None, None
+
+        tx = items[0]
+        ts_raw = tx["timestamp"]
+        blk_raw = tx.get("block_number") or tx.get("blockNumber")
+
+        # timestamp can be "168…" or ISO "2025-07-15T…" – normalise
+        if isinstance(ts_raw, (int, float)) or (isinstance(ts_raw, str) and ts_raw.isdigit()):
+            ts = _dt.datetime.fromtimestamp(int(ts_raw), _dt.timezone.utc)
+        else:
+            ts = _dt.datetime.fromisoformat(ts_raw.replace("Z", "+00:00"))
+
+        blk = int(blk_raw) if blk_raw is not None else None
+        return ts, blk
+
+    def counters(self, wallet: str) -> Dict[str, Any]:
+        return _fetch_json(f"{EXPLORER}/{wallet}/counters")
+
+
+# --------------------------------------------------------------------------- #
+# 3.  Lending-pool event fetcher
+# --------------------------------------------------------------------------- #
+
+def batched_logs(
+    event,
+    start: int,
+    end: int,
+    **filters,
+) -> List[Any]:
+    """Fetch logs in provider-safe 2 000-block chunks with auto-retry."""
+    all_logs: List[Any] = []
+    cur = start
+    while cur <= end:
+        tgt = min(cur + MAX_BLOCK_RANGE - 1, end)
         try:
-            with open(LAST_PROCESSED_BLOCK_FILE, "r") as f:
-                block_number = int(f.read().strip())
-            print(f"Loaded last processed block: {block_number}")
-            return block_number
-        except (IOError, ValueError) as e:
-            print(f"Error loading last processed block: {e}. Starting from 0.")
-            return 0
-    return 0 # Start from block 0 if file doesn't exist
-
-# --- Placeholder Data Simulation (Replace with actual Sei Network API calls) ---
-
-def simulate_get_wallet_creation_date(wallet_address):
-    """
-    Simulates fetching the wallet creation date.
-    In a real scenario, this would involve querying the blockchain for the
-    first transaction of the wallet address.
-    """
-    if wallet_address.startswith("0x1"):  # Older wallet
-        return datetime.datetime.now() - datetime.timedelta(days=random.randint(365 * 2, 365 * 5))
-    elif wallet_address.startswith("0x2"):  # Medium age wallet
-        return datetime.datetime.now() - datetime.timedelta(days=random.randint(180, 365 * 1))
-    elif wallet_address.startswith("0x3"):  # Newer wallet, potentially risky
-        return datetime.datetime.now() - datetime.timedelta(days=random.randint(1, 179))
-    else:  # Default for other random addresses
-        return datetime.datetime.now() - datetime.timedelta(days=random.randint(30, 730))
-
-def simulate_get_transaction_history(wallet_address, lookback_days=365):
-    """
-    Simulates fetching transaction history for a given wallet address.
-    """
-    num_txns = 0
-    total_volume_usd = 0.0
-    unique_contracts = set()
-    suspicious_interaction = False
-
-    if wallet_address.startswith("0x1"):  # High activity, good
-        num_txns = random.randint(500, 2000)
-        total_volume_usd = random.uniform(10000, 100000)
-        unique_contracts = set(f"0xContract{i}" for i in range(random.randint(10, 30)))
-    elif wallet_address.startswith("0x2"):  # Medium activity
-        num_txns = random.randint(100, 500)
-        total_volume_usd = random.uniform(1000, 10000)
-        unique_contracts = set(f"0xContract{i}" for i in range(random.randint(3, 9)))
-    elif wallet_address.startswith("0x3"):  # Low activity, potentially suspicious
-        num_txns = random.randint(5, 50)
-        total_volume_usd = random.uniform(10, 500)
-        unique_contracts = set(f"0xContract{i}" for i in range(random.randint(1, 2)))
-        if random.random() < 0.7:
-            suspicious_interaction = True
-    else:  # Default for other random addresses
-        num_txns = random.randint(20, 300)
-        total_volume_usd = random.uniform(100, 5000)
-        unique_contracts = set(f"0xContract{i}" for i in range(random.randint(2, 15)))
-        if random.random() < 0.1:
-            suspicious_interaction = True
-
-    return {
-        "num_transactions": num_txns,
-        "total_volume_usd": total_volume_usd,
-        "unique_contracts_interacted_with": list(unique_contracts),
-        "suspicious_interaction": suspicious_interaction
-    }
-
-def simulate_get_wallet_balances(wallet_address):
-    """
-    Simulates fetching current wallet balances.
-    """
-    balances = {}
-    if wallet_address.startswith("0x1"):  # High value, good stablecoin ratio
-        balances["SEI"] = random.uniform(1000, 5000)
-        balances["USDC"] = random.uniform(5000, 20000)
-        balances["ETH"] = random.uniform(1, 5)
-    elif wallet_address.startswith("0x2"):  # Medium value
-        balances["SEI"] = random.uniform(100, 1000)
-        balances["USDC"] = random.uniform(500, 5000)
-    elif wallet_address.startswith("0x3"):  # Low value, mostly volatile
-        balances["SEI"] = random.uniform(10, 100)
-        balances["USDT"] = random.uniform(0, 50)
-    else:  # Default for other random addresses
-        balances["SEI"] = random.uniform(50, 500)
-        balances["USDC"] = random.uniform(100, 1000)
-        if random.random() < 0.2:
-            balances["SOME_ALT_COIN"] = random.uniform(10, 200)
-
-    return balances
-
-def get_batched_logs(event, from_block, to_block, batch_size=1000, **kwargs):
-    """
-    Fetches event logs in batches to avoid 'block range too large' errors.
-    """
-    all_logs = []
-    current = from_block
-    
-    while current <= to_block:
-        batch_end = min(current + batch_size - 1, to_block)
-        try:
-            logs = event.get_logs(from_block=current, to_block=batch_end, **kwargs)
+            logs = event.get_logs(
+                from_block=cur,
+                to_block=tgt,
+                argument_filters=filters,
+            )
             all_logs.extend(logs)
-            print(f"   Fetched {len(logs)} events from blocks {current} to {batch_end}")
-        except Exception as e:
-            print(f"   Error fetching logs from blocks {current} to {batch_end}: {e}")
-        
-        current = batch_end + 1
-        # Small delay to avoid rate limiting
-        time.sleep(0.1)
-    
+            if logs:
+                print(f"   {len(logs):3d} logs {cur:>8d}-{tgt:<8d}")
+        except Exception as exc:
+            print(f"RPC error {cur}-{tgt}: {exc} – retry in 0.5 s")
+            time.sleep(0.5)
+            continue  # retry the same chunk
+        cur = tgt + 1
     return all_logs
 
-def get_loan_repayment_history(wallet_address, contract, w3, start_block=0):
-    """
-    Fetches and combines borrow, repay, and liquidation events for a given wallet
-    from the Aave V3-style lending pool using batched queries.
-    """
-    history = []
-    
-    print(f"🔍 Fetching transaction history for {wallet_address} from block {start_block}...")
-    
-    try:
-        # Get the latest block number
-        latest_block = w3.eth.block_number
-        print(f"   Latest block: {latest_block}")
-        
-        # 1. Fetch Borrow events in batches
-        print("   Fetching Borrow events...")
-        borrow_events = get_batched_logs(
-            contract.events.Borrow(),
-            from_block=start_block,
-            to_block=latest_block,
-            argument_filters={'user': wallet_address}
-        )
-        
-        for event in borrow_events:
-            history.append({
-                'type': 'Borrow',
-                'user': event['args']['onBehalfOf'],
-                'reserve': event['args']['reserve'],
-                'amount': event['args']['amount'],
-                'blockNumber': event['blockNumber'],
-                'transactionHash': event['transactionHash'].hex()
-            })
-        print(f"   Found {len(borrow_events)} Borrow event(s).")
 
-        # 2. Fetch Repay events in batches
-        print("   Fetching Repay events...")
-        repay_events = get_batched_logs(
-            contract.events.Repay(),
-            from_block=start_block,
-            to_block=latest_block,
-            argument_filters={'user': wallet_address}
-        )
-        
-        for event in repay_events:
-            history.append({
-                'type': 'Repay',
-                'user': event['args']['user'],
-                'repayer': event['args']['repayer'],
-                'reserve': event['args']['reserve'],
-                'amount': event['args']['amount'],
-                'blockNumber': event['blockNumber'],
-                'transactionHash': event['transactionHash'].hex()
-            })
-        print(f"   Found {len(repay_events)} Repay event(s).")
+def lending_history(
+    wallet: str,
+    contract,
+    w3: Web3,
+    start_block: int,
+) -> List[Dict[str, Any]]:
+    """Chronological Borrow / Repay / Liquidation events for wallet."""
+    latest = w3.eth.block_number
+    hist: List[Dict[str, Any]] = []
 
-        # 3. Fetch LiquidationCall events in batches
-        print("   Fetching LiquidationCall events...")
-        liquidation_events = get_batched_logs(
-            contract.events.LiquidationCall(),
-            from_block=start_block,
-            to_block=latest_block,
-            argument_filters={'user': wallet_address}
-        )
-        
-        for event in liquidation_events:
-            history.append({
-                'type': 'Liquidation',
-                'user': event['args']['user'],
-                'collateralAsset': event['args']['collateralAsset'],
-                'debtAsset': event['args']['debtAsset'],
-                'debtToCover': event['args']['debtToCover'],
-                'liquidatedCollateralAmount': event['args']['liquidatedCollateralAmount'],
-                'liquidator': event['args']['liquidator'],
-                'blockNumber': event['blockNumber'],
-                'transactionHash': event['transactionHash'].hex()
-            })
-        print(f"   Found {len(liquidation_events)} LiquidationCall event(s).")
+    for ev_name, ev in [
+        ("Borrow", contract.events.Borrow()),
+        ("Repay", contract.events.Repay()),
+        ("Liquidation", contract.events.LiquidationCall()),
+    ]:
+        print(f"Scanning {ev_name} events…")
+        logs = batched_logs(ev, start_block, latest, user=wallet)
+        for lg in logs:
+            args = lg["args"]
+            hist.append(
+                {
+                    "type": ev_name,
+                    "block": lg["blockNumber"],
+                    "tx": lg["transactionHash"].hex(),
+                    **{k: args[k] for k in args},
+                }
+            )
+    hist.sort(key=lambda x: x["block"])
+    return hist
 
-        # Sort the combined history by block number to ensure chronological order
-        history.sort(key=lambda x: x['blockNumber'])
-        
-        # Save the latest block processed for the next run
-        save_last_processed_block(latest_block)
 
-        return history
+# --------------------------------------------------------------------------- #
+# 4.  Scoring engine
+# --------------------------------------------------------------------------- #
 
-    except Exception as e:
-        print(f"An error occurred while fetching event logs: {e}")
-        # Return empty history instead of raising to allow the script to continue
-        return []
+@dataclass(slots=True)
+class CreditScore:
+    wallet: str
+    score: int
+    risk: str
+    factors: Dict[str, int]
 
-def get_protocol_interactions(wallet_address):
-    """Retrieve staking, LP and governance participation information for an address."""
-    # For simulation purposes, return mock data
-    # In a real implementation, this would query actual contracts
-    return {
-        "is_staker": random.choice([True, False]),
-        "is_lp_provider": random.choice([True, False]),
-        "num_governance_votes": random.randint(0, 10),
-        "total_staked_sei": random.uniform(0, 1000),
-        "total_lp_value_usd": random.uniform(0, 5000),
-    }
 
 class DeFiCreditScorer:
-    BASE_SCORE = 500  # Starting score
+    BASE = 500
+    AGE_W = 0.15
+    TRANS_W = 0.20
+    BAL_W = 0.25
+    REPAY_W = 0.30
+    DEFI_W = 0.10
 
-    def __init__(self):
-        """
-        Constructor for the DeFiCreditScorer.
-        This now includes the setup for Web3 connection and contract initialization.
-        """
-        # --- 1. SET UP CONNECTION TO THE BLOCKCHAIN ---
-        self.rpc_url = "https://evm-rpc.sei-apis.com/"
-        self.w3 = Web3(Web3.HTTPProvider(self.rpc_url))
-        
-        if not self.w3.is_connected():
-            raise ConnectionError("Failed to connect to the Sei EVM RPC.")
-
-        # --- 2. DEFINE CONTRACT ADDRESS AND ABI ---
-        # Replace with your actual deployed lending pool contract address
-        self.contract_address = "0xA1b2C3d4E5f678901234567890abcdef12345678"
-        
-        # Load the contract's ABI from the JSON file
-        with open('yei-pool.json', 'r') as f:
-            contract_abi = json.load(f)
-
-        # --- 3. CREATE AND STORE THE CONTRACT OBJECT ---
-        self.contract = self.w3.eth.contract(
-            address=self.w3.to_checksum_address(self.contract_address),
-            abi=contract_abi
+    def __init__(self, lending_pool_addr: str, abi_path: str = "yei-pool.json"):
+        self.provider = SeiProvider.connect()
+        with open(abi_path, "r", encoding="utf-8") as fh:
+            abi = json.load(fh)
+        self.pool = self.provider.w3.eth.contract(
+            address=Web3.to_checksum_address(lending_pool_addr),
+            abi=abi,
         )
-        
-        print("DeFiCreditScorer initialized and connected to the contract.")
+        print("Connected to Sei & lending pool")
 
-    def _calculate_account_age_score(self, wallet_creation_date):
-        """Calculates score based on account age."""
-        age_days = (datetime.datetime.now() - wallet_creation_date).days
-        score_contribution = 0
-        
-        if age_days < 90:
-            score_contribution = -50
-        elif 90 <= age_days < 180:
-            score_contribution = -20
-        elif 180 <= age_days < 365:
-            score_contribution = 10
-        elif 365 <= age_days < 730:
-            score_contribution = 25
-        else:
-            score_contribution = 40
-            
-        return score_contribution, f"Account Age ({age_days} days)"
+    # ---------- pillar mini-scores --------------------------------------- #
 
-    def _calculate_repayment_behavior_score(self, loan_history):
-        """Calculates score based on historical loan repayment behavior."""
-        if not loan_history:
-            return 0, "Repayment Behavior (No prior loans)"
-        
-        # For simulation, we'll create mock repayment data based on the events
-        # In a real implementation, you'd analyze the actual loan lifecycle
-        total_loans = len([event for event in loan_history if event['type'] == 'Borrow'])
-        liquidations = len([event for event in loan_history if event['type'] == 'Liquidation'])
-        
-        if total_loans == 0:
-            return 0, "Repayment Behavior (No loans found)"
-        
-        score_contribution = 0
-        if liquidations > 0:
-            score_contribution -= (liquidations * 150)
-            return score_contribution, f"Repayment Behavior ({liquidations} liquidations)"
-        else:
-            score_contribution += 50  # Bonus for no liquidations
-            return score_contribution, f"Repayment Behavior (No liquidations, {total_loans} loans)"
+    def _score_age(self, days: int | None) -> int:
+        if days is None:
+            return -50
+        if days > 730:
+            return +100
+        if days > 365:
+            return +60
+        if days > 90:
+            return +20
+        return -30
 
-    def _calculate_transaction_history_score(self, txn_history):
-        """Calculates score based on transaction frequency, volume, and patterns."""
-        score_contribution = 0
-        num_txns = txn_history["num_transactions"]
-        total_volume_usd = txn_history["total_volume_usd"]
-        num_unique_contracts = len(txn_history["unique_contracts_interacted_with"])
-        suspicious_interaction = txn_history["suspicious_interaction"]
+    def _score_transactions(self, txs: int) -> int:
+        if txs > 2_000:
+            return +100
+        if txs > 300:
+            return +60
+        if txs > 50:
+            return +20
+        return -20
 
-        # Transaction Frequency
-        if num_txns > 500:
-            score_contribution += 40
-        elif num_txns > 100:
-            score_contribution += 20
-        elif num_txns > 20:
-            score_contribution += 5
-        else:
-            score_contribution -= 10
+    def _score_balances(self, sei_native: float) -> int:
+        if sei_native > 5_000:
+            return +100
+        if sei_native > 500:
+            return +60
+        if sei_native > 50:
+            return +20
+        return -30
 
-        # Total Volume
-        if total_volume_usd > 10000:
-            score_contribution += 30
-        elif total_volume_usd > 1000:
-            score_contribution += 15
-        else:
-            score_contribution -= 5
+    def _score_repayment(self, events: List[Dict[str, Any]]) -> int:
+        borrows = len([e for e in events if e["type"] == "Borrow"])
+        liquid = len([e for e in events if e["type"] == "Liquidation"])
+        if borrows == 0:
+            return 0
+        ratio = liquid / borrows
+        if ratio == 0:
+            return +100
+        if ratio < 0.10:
+            return +60
+        if ratio < 0.25:
+            return 0
+        return int(-150 * ratio)
 
-        # Diversity of Interactions
-        if num_unique_contracts > 10:
-            score_contribution += 20
-        elif num_unique_contracts > 3:
-            score_contribution += 10
-        else:
-            score_contribution -= 5
+    def _score_defi_extras(self, contracts_touched: int) -> int:
+        if contracts_touched > 25:
+            return +30
+        if contracts_touched > 10:
+            return +10
+        return 0
 
-        # Suspicious Interaction Flag
-        if suspicious_interaction:
-            score_contribution -= 300
+    # ---------- public API ---------------------------------------------- #
 
-        return score_contribution, f"Transaction History (Txns: {num_txns}, Volume: ${total_volume_usd:,.0f}, Contracts: {num_unique_contracts})"
+    def calculate(self, wallet: str) -> CreditScore:
+        wallet = Web3.to_checksum_address(wallet)
 
-    def _calculate_wallet_balance_score(self, balances):
-        """Calculates score based on wallet balances, liquidity, and diversity."""
-        total_value_usd = 0
-        stablecoin_value_usd = 0
-        num_unique_tokens = 0
+        # --- metadata & fast early cutoff ------------------------------- #
+        first_ts, first_blk = self.provider.first_tx_info(wallet)
+        counters = self.provider.counters(wallet)
+        days_old = (
+            (_dt.datetime.utcnow().replace(tzinfo=_dt.timezone.utc) - first_ts).days
+            if first_ts
+            else None
+        )
 
-        for token, amount in balances.items():
-            if token == "SEI":
-                total_value_usd += amount * 0.5
-            elif token == "ETH":
-                total_value_usd += amount * 3000
-            elif token in ["USDC", "USDT"]:
-                total_value_usd += amount
-                stablecoin_value_usd += amount
-            num_unique_tokens += 1
+        native_bal = get_wallet_balance(wallet)  # reuse working helper
 
-        score_contribution = 0
-        stablecoin_ratio = (stablecoin_value_usd / total_value_usd) * 100 if total_value_usd > 0 else 0
+        start_blk = first_blk or 0
+        print(f"   ➜ Wallet first seen at block {start_blk}")
 
-        # Total Value
-        if total_value_usd > 10000:
-            score_contribution += 60
-        elif total_value_usd > 1000:
-            score_contribution += 30
-        else:
-            score_contribution -= 20
+        lend_events = lending_history(wallet, self.pool, self.provider.w3, start_blk)
 
-        # Stablecoin Ratio
-        if stablecoin_ratio > 50:
-            score_contribution += 25
-        elif stablecoin_ratio > 20:
-            score_contribution += 10
-        else:
-            score_contribution -= 10
+        # --- pillar scores ---------------------------------------------- #
+        s_age = self._score_age(days_old)
+        s_tx = self._score_transactions(counters.get("transaction_count", 0))
+        s_bal = self._score_balances(native_bal)
+        s_rep = self._score_repayment(lend_events)
+        s_defi = self._score_defi_extras(len(counters.get("unique_addresses", [])))
 
-        # Diversity of Holdings
-        if num_unique_tokens > 5:
-            score_contribution += 15
-        elif num_unique_tokens > 2:
-            score_contribution += 5
+        raw = (
+            self.BASE
+            + s_age * self.AGE_W
+            + s_tx * self.TRANS_W
+            + s_bal * self.BAL_W
+            + s_rep * self.REPAY_W
+            + s_defi * self.DEFI_W
+        )
+        final = max(0, min(1000, int(round(raw))))
 
-        return score_contribution, f"Wallet Balances (Total: ${total_value_usd:,.0f}, Stablecoin Ratio: {stablecoin_ratio:.0f}%)"
+        risk = (
+            "Very Low Risk"
+            if final >= 850
+            else "Low Risk"
+            if final >= 700
+            else "Medium Risk"
+            if final >= 500
+            else "High Risk"
+            if final >= 300
+            else "Very High Risk"
+        )
 
-    def _calculate_protocol_interaction_score(self, protocol_interactions):
-        """Calculates score based on engagement with other DeFi protocols."""
-        score_contribution = 0
-        is_staker = protocol_interactions["is_staker"]
-        is_lp_provider = protocol_interactions["is_lp_provider"]
-        num_governance_votes = protocol_interactions["num_governance_votes"]
-        total_staked_sei = protocol_interactions["total_staked_sei"]
-        total_lp_value_usd = protocol_interactions["total_lp_value_usd"]
+        return CreditScore(
+            wallet=wallet,
+            score=final,
+            risk=risk,
+            factors={
+                "Account Age": s_age,
+                "Tx Activity": s_tx,
+                "Balances": s_bal,
+                "Repayment": s_rep,
+                "DeFi Extras": s_defi,
+            },
+        )
 
-        if is_staker and total_staked_sei > 1000:
-            score_contribution += 20
-        elif is_staker:
-            score_contribution += 5
 
-        if is_lp_provider and total_lp_value_usd > 1000:
-            score_contribution += 20
-        elif is_lp_provider:
-            score_contribution += 5
+# --------------------------------------------------------------------------- #
+# 5.  CLI
+# --------------------------------------------------------------------------- #
 
-        if num_governance_votes > 5:
-            score_contribution += 15
-        elif num_governance_votes > 0:
-            score_contribution += 5
-
-        return score_contribution, f"Protocol Interactions (Staker: {is_staker}, LP: {is_lp_provider}, Votes: {num_governance_votes})"
-
-    def calculate_credit_score(self, wallet_address):
-        """
-        Calculates the overall credit score for a given wallet address
-        by aggregating scores from various factors.
-        """
-        detailed_scores = []
-        current_score = self.BASE_SCORE
-
-        # Load the last processed block number
-        start_block_for_events = load_last_processed_block()
-
-        # 1. Fetch data from the Sei network
-        wallet_creation_date = simulate_get_wallet_creation_date(wallet_address)
-        txn_history = simulate_get_transaction_history(wallet_address)
-        wallet_balances = simulate_get_wallet_balances(wallet_address)
-        loan_history = get_loan_repayment_history(wallet_address, self.contract, self.w3, start_block=start_block_for_events)
-        protocol_interactions = get_protocol_interactions(wallet_address)
-
-        # 2. Calculate scores for each factor
-        score, description = self._calculate_account_age_score(wallet_creation_date)
-        current_score += score
-        detailed_scores.append({"factor": "Account Age", "contribution": score, "description": description})
-
-        score, description = self._calculate_repayment_behavior_score(loan_history)
-        current_score += score
-        detailed_scores.append({"factor": "Repayment Behavior", "contribution": score, "description": description})
-
-        score, description = self._calculate_transaction_history_score(txn_history)
-        current_score += score
-        detailed_scores.append({"factor": "Transaction History", "contribution": score, "description": description})
-
-        score, description = self._calculate_wallet_balance_score(wallet_balances)
-        current_score += score
-        detailed_scores.append({"factor": "Wallet Balances", "contribution": score, "description": description})
-
-        score, description = self._calculate_protocol_interaction_score(protocol_interactions)
-        current_score += score
-        detailed_scores.append({"factor": "Protocol Interactions", "contribution": score, "description": description})
-
-        # Ensure score doesn't go below 0 or above 1000
-        final_score = max(0, min(1000, current_score))
-
-        # Determine risk category
-        risk_category = "Unknown"
-        if final_score < 300:
-            risk_category = "Very High Risk"
-        elif 300 <= final_score < 500:
-            risk_category = "High Risk"
-        elif 500 <= final_score < 700:
-            risk_category = "Medium Risk"
-        elif 700 <= final_score < 850:
-            risk_category = "Low Risk"
-        else:
-            risk_category = "Very Low Risk"
-
-        return {
-            "wallet_address": wallet_address,
-            "credit_score": final_score,
-            "risk_category": risk_category,
-            "detailed_scores": detailed_scores,
-            "raw_data_simulated": {
-                "wallet_creation_date": wallet_creation_date.isoformat(),
-                "transaction_history": txn_history,
-                "wallet_balances": wallet_balances,
-                "loan_repayment_history": loan_history,
-                "protocol_interactions": protocol_interactions
-            }
-        }
-
-# --- Dynamic Example Usage ---
 if __name__ == "__main__":
-    scorer = DeFiCreditScorer()
-    
-    print("\n--- AI-Powered DeFi Risk Assessment Tool (Simulated) ---")
-    print("Enter a Sei wallet address to get its simulated credit score.")
-    print("Note: This uses simulated data. For real data, you need to integrate with Sei Network's RPC.")
-    print("Try addresses starting with '0x1' for good scores, '0x2' for medium, '0x3' for potentially risky.")
-    print("You can also enter any other valid-looking hex address for a mixed simulated result.")
-    
-    while True:
-        wallet_input = input("\nEnter Sei Wallet Address (or 'quit' to exit): ").strip()
-        
-        if wallet_input.lower() == 'quit':
-            break
-        
-        # Basic validation for a hex address
-        if not (wallet_input.startswith("0x") and len(wallet_input) >= 42):
-            print("Invalid wallet address format. Please enter a valid hex address (e.g., 0x...). ")
-            continue
-        
-        print(f"\n--- Assessing Wallet: {wallet_input} ---")
-        score_result = scorer.calculate_credit_score(wallet_input)
-        
-        print(f"\nSummary for {wallet_input}:")
-        print(f" Credit Score: {score_result['credit_score']}")
-        print(f" Risk Category: {score_result['risk_category']}")
-        print("\n Detailed Contributions:")
-        for detail in score_result['detailed_scores']:
-            print(f" - {detail['factor']}: {detail['contribution']} points ({detail['description']})")
+    import argparse
 
+    ap = argparse.ArgumentParser(description="Sei credit score")
+    ap.add_argument("wallet", help="wallet address (0x…)")
+    ap.add_argument(
+        "--pool",
+        default="0xA1b2C3d4E5f678901234567890abcdef12345678",
+        help="lending-pool contract address",
+    )
+    ns = ap.parse_args()
 
+    scorer = DeFiCreditScorer(lending_pool_addr=ns.pool)
+    result = scorer.calculate(ns.wallet)
+
+    print(f"\nWallet: {result.wallet}")
+    print(f"Score : {result.score}  ({result.risk})")
+    print("Breakdown:")
+    for name, pts in result.factors.items():
+        print(f"  {name:<15} {pts:+}")

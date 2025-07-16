@@ -1,44 +1,41 @@
+# backend/transactions.py
 import requests
+from typing import Dict, Any, Optional
 
-def get_wallet_info(wallet_address):
-    # API URL for fetching wallet info
-    url = f'https://sei.blockscout.com/api/v2/addresses/0x014eB5A3C85385B0098a75A4AB4eEb2dACd80667/transactions'
-    
-    # Set the header
-    headers = {'accept': 'application/json'}
+BASE_URL = "https://sei.blockscout.com/api/v2/addresses"
+HEADERS = {"accept": "application/json"}
+
+
+def get_wallet_transactions(
+    wallet_address: str,
+    page: int = 1,
+    limit: int = 50,
+) -> Optional[Dict[str, Any]]:
+    """
+    Return a page of transactions for `wallet_address` from the Sei Blockscout API.
+    """
+    url = (
+        f"{BASE_URL}/{wallet_address}/transactions"
+        f"?page={page}&block_number=true&limit={limit}&sort=desc"
+    )
 
     try:
-        # Make the GET request to the API
-        response = requests.get(url, headers=headers)
-
-        # Print the response status to debug
-        print(f"Response Status Code: {response.status_code}")
-
-        # Check if the response was successful
-        if response.status_code == 200:
-            # Parse the response JSON
-            data = response.json()
-
-            # Check if the data exists and contains relevant information
-            if data:
-                return data
-            else:
-                print("No data available for this address.")
-                return None
-        else:
-            print(f"Error: Unable to fetch data. Status code: {response.status_code}")
-            return None
-    except requests.exceptions.RequestException as e:
-        # Handle network or other request exceptions
-        print(f"Error: {e}")
+        resp = requests.get(url, headers=HEADERS, timeout=10)
+        resp.raise_for_status()
+        return resp.json()
+    except requests.RequestException as exc:  # network / 4xx / 5xx
+        print(f"Could not fetch transactions: {exc}")
         return None
 
-# Example usage with a specific wallet address
-wallet_address = "0x6Ae3539c7BB31AbCaCc2403e7F6091BC43D825FF"
-wallet_info = get_wallet_info(wallet_address)
 
-# Print the wallet info if available
-if wallet_info:
-    print("Wallet Info:", wallet_info)
-else:
-    print("No wallet information returned.")
+if __name__ == "__main__":
+    import argparse
+
+    ap = argparse.ArgumentParser(description="Fetch Sei wallet transactions")
+    ap.add_argument("wallet", help="Sei wallet address (0x…)")
+    ap.add_argument("--page", type=int, default=1)
+    ap.add_argument("--limit", type=int, default=50)
+    ns = ap.parse_args()
+
+    data = get_wallet_transactions(ns.wallet, ns.page, ns.limit)
+    print(data if data else "No data returned.")
