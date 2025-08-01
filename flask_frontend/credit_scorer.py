@@ -238,7 +238,7 @@ def get_protocol_interactions(wallet_address):
 class DeFiCreditScorer:
     BASE_SCORE = 500  # Starting score
 
-    def __init__(self,lending_pool_addr: str, abi_path: str = "C:/Users/DEVANKSH/defi-credit-tracker/backend/abis/yei-pool.json"):
+    def __init__(self,lending_pool_addr: str, abi_path: str = "../backend/abis/yei-pool.json"):
         """
         Constructor for the DeFiCreditScorer.
         This now includes the setup for Web3 connection and contract initialization.
@@ -247,7 +247,7 @@ class DeFiCreditScorer:
         self.rpc_url = "https://evm-rpc.sei-apis.com/"
         self.w3 = Web3(Web3.HTTPProvider(self.rpc_url))
         
-        if not self.w3.isConnected():
+        if not self.w3.is_connected():
             raise ConnectionError("Failed to connect to the Sei EVM RPC.")
 
         # --- 2. DEFINE CONTRACT ADDRESS AND ABI ---
@@ -255,12 +255,12 @@ class DeFiCreditScorer:
         self.contract_address = "0xA1b2C3d4E5f678901234567890abcdef12345678"
         
         # Load the contract's ABI from the JSON file
-        with open('C:/Users/DEVANKSH/defi-credit-tracker/backend/abis/yei-pool.json', 'r') as f:
+        with open('../backend/abis/yei-pool.json', 'r') as f:
             contract_abi = json.load(f)
 
         # --- 3. CREATE AND STORE THE CONTRACT OBJECT ---
         self.contract = self.w3.eth.contract(
-            address=self.w3.toChecksumAddress(self.contract_address),
+            address=self.w3.to_checksum_address(self.contract_address),
             abi=contract_abi
         )
         

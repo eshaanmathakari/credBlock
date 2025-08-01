@@ -27,13 +27,29 @@ RPC_URL = "https://evm-rpc.sei-apis.com"
 EXPLORER = "https://sei.blockscout.com/api/v2/addresses"
 HEADERS = {"accept": "application/json"}
 
-MAX_BLOCK_RANGE = 2_000  # enforced by Sei RPC
+MAX_BLOCK_RANGE = 1_000  # enforced by Sei RPC (reduced from 2000)
 
 
-def _fetch_json(url: str) -> Dict[str, Any]:
-    resp = requests.get(url, headers=HEADERS, timeout=10)
-    resp.raise_for_status()
-    return resp.json()
+def _fetch_json(url: str, retries: int = 3, timeout: int = 30) -> Dict[str, Any]:
+    """Fetch JSON with retry logic and better timeout handling."""
+    for attempt in range(retries):
+        try:
+            resp = requests.get(url, headers=HEADERS, timeout=timeout)
+            resp.raise_for_status()
+            return resp.json()
+        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
+            if attempt < retries - 1:
+                wait_time = (attempt + 1) * 2  # Progressive backoff: 2s, 4s, 6s
+                print(f"API request failed (attempt {attempt + 1}/{retries}), retrying in {wait_time}s...")
+                time.sleep(wait_time)
+                continue
+            else:
+                print(f"API request failed after {retries} attempts: {e}")
+                # Return empty dict so the script can continue with default values
+                return {}
+        except requests.exceptions.RequestException as e:
+            print(f"API request error: {e}")
+            return {}
 
 
 # --------------------------------------------------------------------------- #
@@ -56,28 +72,34 @@ class SeiProvider:
     def first_tx_info(self, wallet: str) -> Tuple[_dt.datetime | None, int | None]:
         """
         Returns (timestamp, block_number) of the wallet's very first tx.
-        If the wallet has no tx history, both return None.
+        If the wallet has no tx history or API fails, both return None.
         """
         url = f"{EXPLORER}/{wallet}/transactions?limit=1&sort=asc"
-        items = _fetch_json(url).get("items", [])
+        data = _fetch_json(url)
+        items = data.get("items", []) if data else []
         if not items:
             return None, None
 
-        tx = items[0]
-        ts_raw = tx["timestamp"]
-        blk_raw = tx.get("block_number") or tx.get("blockNumber")
+        try:
+            tx = items[0]
+            ts_raw = tx["timestamp"]
+            blk_raw = tx.get("block_number") or tx.get("blockNumber")
 
-        # timestamp can be "168…" or ISO "2025-07-15T…" – normalise
-        if isinstance(ts_raw, (int, float)) or (isinstance(ts_raw, str) and ts_raw.isdigit()):
-            ts = _dt.datetime.fromtimestamp(int(ts_raw), _dt.timezone.utc)
-        else:
-            ts = _dt.datetime.fromisoformat(ts_raw.replace("Z", "+00:00"))
+            # timestamp can be "168…" or ISO "2025-07-15T…" – normalise
+            if isinstance(ts_raw, (int, float)) or (isinstance(ts_raw, str) and ts_raw.isdigit()):
+                ts = _dt.datetime.fromtimestamp(int(ts_raw), _dt.timezone.utc)
+            else:
+                ts = _dt.datetime.fromisoformat(ts_raw.replace("Z", "+00:00"))
 
-        blk = int(blk_raw) if blk_raw is not None else None
-        return ts, blk
+            blk = int(blk_raw) if blk_raw is not None else None
+            return ts, blk
+        except (KeyError, ValueError, TypeError) as e:
+            print(f"Error parsing transaction data: {e}")
+            return None, None
 
     def counters(self, wallet: str) -> Dict[str, Any]:
-        return _fetch_json(f"{EXPLORER}/{wallet}/counters")
+        data = _fetch_json(f"{EXPLORER}/{wallet}/counters")
+        return data if data else {"transaction_count": 0, "unique_addresses": []}
 
 
 # --------------------------------------------------------------------------- #
@@ -241,8 +263,15 @@ class DeFiCreditScorer:
 
         native_bal = get_wallet_balance(wallet)  # reuse working helper
 
-        start_blk = first_blk or 0
-        print(f"   ➜ Wallet first seen at block {start_blk}")
+        # For faster testing, use a more recent starting block if wallet has no history
+        latest_block = self.provider.w3.eth.block_number
+        if first_blk is None:
+            # Start from ~7 days ago (assuming ~2s block time = 302,400 blocks per week)
+            start_blk = max(0, latest_block - 302_400)
+            print(f"   ➜ No transaction history found, scanning from recent block {start_blk}")
+        else:
+            start_blk = first_blk
+            print(f"   ➜ Wallet first seen at block {start_blk}")
 
         lend_events = lending_history(wallet, self.pool, self.provider.w3, start_blk)
 
@@ -302,6 +331,11 @@ if __name__ == "__main__":
         "--pool",
         default="0xA1b2C3d4E5f678901234567890abcdef12345678",
         help="lending-pool contract address",
+    )
+    ap.add_argument(
+        "--recent-only",
+        action="store_true",
+        help="Only scan recent blocks (last week) for faster testing",
     )
     ns = ap.parse_args()
 
