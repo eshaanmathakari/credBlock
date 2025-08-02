@@ -76,31 +76,61 @@
     <script>
         async function getScore() {
             const walletAddress = document.getElementById('wallet-address').value;
-            const response = await fetch('/get_score', {
-                method: 'POST',
-                body: new URLSearchParams({
-                    wallet: walletAddress
-                }),
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded'
-                }
-            });
             
-            const data = await response.json();
-            
-            document.getElementById('wallet-display').innerText = data.wallet;
-            document.getElementById('score-display').innerText = data.score;
-            document.getElementById('risk-display').innerText = data.risk;
-            
-            const factorsList = document.getElementById('factors-list');
-            factorsList.innerHTML = '';
-            for (const [key, value] of Object.entries(data.factors)) {
-                const li = document.createElement('li');
-                li.innerText = `${key}: ${value}`;
-                factorsList.appendChild(li);
+            if (!walletAddress) {
+                alert('Please enter a wallet address');
+                return;
             }
+            
+            try {
+                document.getElementById('result').style.display = 'none';
+                // Show loading state
+                const button = document.querySelector('button');
+                const originalText = button.innerText;
+                button.innerText = 'Calculating...';
+                button.disabled = true;
+                
+                const response = await fetch('/get_score', {
+                    method: 'POST',
+                    body: new URLSearchParams({
+                        wallet: walletAddress
+                    }),
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                // Reset button
+                button.innerText = originalText;
+                button.disabled = false;
+                
+                if (data.error) {
+                    alert(`Error: ${data.message}`);
+                    return;
+                }
+                
+                document.getElementById('wallet-display').innerText = data.wallet;
+                document.getElementById('score-display').innerText = data.score;
+                document.getElementById('risk-display').innerText = data.risk;
+                
+                const factorsList = document.getElementById('factors-list');
+                factorsList.innerHTML = '';
+                for (const [key, value] of Object.entries(data.factors)) {
+                    const li = document.createElement('li');
+                    li.innerText = `${key}: ${value}`;
+                    factorsList.appendChild(li);
+                }
 
-            document.getElementById('result').style.display = 'block';
+                document.getElementById('result').style.display = 'block';
+                
+            } catch (error) {
+                const button = document.querySelector('button');
+                button.innerText = 'Get Credit Score';
+                button.disabled = false;
+                alert('Network error: ' + error.message);
+            }
         }
     </script>
 </body>
