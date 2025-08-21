@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      width: 350px;
+      padding: 20px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      margin: 0;
+    }
+    
+    .header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    
+    .header h1 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 600;
+    }
+    
+    .header p {
+      margin: 5px 0 0 0;
+      font-size: 12px;
+      opacity: 0.8;
+    }
+    
+    .input-group {
+      margin-bottom: 15px;
+    }
+    
+    input[type="text"] {
+      width: 100%;
+      padding: 10px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      box-sizing: border-box;
+      background: rgba(255, 255, 255, 0.9);
+      color: #333;
+    }
+    
+    input[type="text"]::placeholder {
+      color: #666;
+    }
+    
+    button {
+      width: 100%;
+      padding: 12px;
+      background: rgba(255, 255, 255, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 8px;
+      color: white;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    button:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+    
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    
+    .result {
+      margin-top: 15px;
+      padding: 15px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      display: none;
+    }
+    
+    .result.show {
+      display: block;
+    }
+    
+    .score {
+      font-size: 24px;
+      font-weight: bold;
+      text-align: center;
+      margin-bottom: 10px;
+    }
+    
+    .risk {
+      text-align: center;
+      font-size: 14px;
+      margin-bottom: 10px;
+      padding: 5px 10px;
+      border-radius: 15px;
+      display: inline-block;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    
+    .risk.low { background: rgba(76, 175, 80, 0.3); }
+    .risk.medium { background: rgba(255, 152, 0, 0.3); }
+    .risk.high { background: rgba(244, 67, 54, 0.3); }
+    
+    .factors {
+      font-size: 12px;
+      margin-top: 10px;
+    }
+    
+    .factor {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 5px;
+    }
+    
+    .loading {
+      text-align: center;
+      font-size: 14px;
+      opacity: 0.8;
+    }
+    
+    .error {
+      color: #ff6b6b;
+      text-align: center;
+      font-size: 12px;
+      margin-top: 10px;
+    }
+    
+    .latency {
+      text-align: center;
+      font-size: 11px;
+      opacity: 0.7;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🚀 SEI Credit Score</h1>
+    <p>Instant blockchain credit scoring</p>
+  </div>
+  
+  <div class="input-group">
+    <input type="text" id="wallet-address" placeholder="Enter SEI wallet address (0x...)" />
+  </div>
+  
+  <button id="score-btn">Get Credit Score</button>
+  
+  <div id="loading" class="loading" style="display: none;">
+    Analyzing wallet...
+  </div>
+  
+  <div id="result" class="result">
+    <div class="score" id="score-display"></div>
+    <div class="risk" id="risk-display"></div>
+    <div class="factors" id="factors-display"></div>
+    <div class="latency" id="latency-display"></div>
+  </div>
+  
+  <div id="error" class="error" style="display: none;"></div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>

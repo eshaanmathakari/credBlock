@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "SEI Credit Score",
+  "version": "0.1.0",
+  "description": "Get instant credit scores for SEI wallet addresses",
+  "permissions": [
+    "storage",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "https://sei.blockscout.com/*",
+    "http://localhost:5000/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "SEI Credit Score"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://sei.blockscout.com/address/*"],
+      "js": ["content.js"],
+      "css": ["content.css"]
+    }
+  ]
+}

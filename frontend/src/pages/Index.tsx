@@ -5,24 +5,44 @@ import { CreditScoreDisplay } from "@/components/CreditScoreDisplay";
 import { Chatbot } from "@/components/Chatbot";
 import { useToast } from "@/hooks/use-toast";
 
-// Mock API call - replace with actual SEI Network API
+// Real API call to Flask backend
 const fetchCreditScore = async (walletAddress: string) => {
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 2000));
+  const t0 = performance.now();
   
-  // Mock credit score data
-  return {
-    score: Math.floor(Math.random() * 300) + 600, // 600-900 range
-    accuracy: Math.floor(Math.random() * 20) + 80, // 80-100% range
-    grade: ['A+', 'A', 'A-', 'B+', 'B'][Math.floor(Math.random() * 5)],
-    riskLevel: ['low', 'medium', 'high'][Math.floor(Math.random() * 3)] as 'low' | 'medium' | 'high',
-    factors: {
-      transactionHistory: Math.floor(Math.random() * 40) + 60,
-      liquidityProvision: Math.floor(Math.random() * 40) + 40,
-      defiInteractions: Math.floor(Math.random() * 50) + 30,
-      networkParticipation: Math.floor(Math.random() * 60) + 40,
+  // Use the Flask backend API
+  const response = await fetch(`http://localhost:5000/score/${walletAddress}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
     },
-    walletAddress,
+  });
+  
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  
+  const data = await response.json();
+  const ms = Math.max(1, Math.round(performance.now() - t0));
+  
+  // Transform the data to match the expected format
+  return {
+    score: data.score,
+    accuracy: Math.round(data.confidence * 100),
+    grade: data.score >= 850 ? 'A+' : data.score >= 700 ? 'A' : data.score >= 500 ? 'B' : 'C',
+    riskLevel: data.risk.toLowerCase().includes('low') ? 'low' : 
+               data.risk.toLowerCase().includes('high') ? 'high' : 'medium',
+    factors: {
+      transactionHistory: data.factors['Tx Activity'] || 0,
+      liquidityProvision: data.factors['Balances'] || 0,
+      defiInteractions: data.factors['DeFi Extras'] || 0,
+      networkParticipation: data.factors['Account Age'] || 0,
+      staking: data.factors['Staking'] || 0,
+      governance: data.factors['Governance'] || 0,
+    },
+    walletAddress: data.wallet,
+    latencyMs: ms,
+    confidence: data.confidence,
+    risk: data.risk,
   };
 };
 
@@ -40,12 +60,13 @@ const Index = () => {
       setCreditData(data);
       toast({
         title: "Credit Score Retrieved",
-        description: `Successfully analyzed wallet: ${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`,
+        description: `Score: ${data.score} (${data.latencyMs}ms) - ${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`,
       });
     } catch (error) {
+      console.error('Error fetching credit score:', error);
       toast({
         title: "Error",
-        description: "Failed to fetch credit score. Please try again.",
+        description: "Failed to fetch credit score. Please check if the backend is running.",
         variant: "destructive",
       });
     } finally {
@@ -64,7 +85,10 @@ const Index = () => {
           ) : (
             <div className="space-y-8">
               <CreditScoreDisplay data={creditData} />
-              <div className="text-center">
+              <div className="text-center space-y-4">
+                <div className="text-sm text-muted-foreground">
+                  Response time: {creditData.latencyMs}ms | Confidence: {Math.round(creditData.confidence * 100)}%
+                </div>
                 <button
                   onClick={() => setCreditData(null)}
                   className="text-primary hover:text-primary/80 font-medium transition-colors"

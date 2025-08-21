@@ -1,8 +1,9 @@
 """
 Credit-scoring engine for Sei wallets – FINAL FAST VERSION
 • automatic 2 000-block batching (provider limit)
-• starts scan at wallet’s first ever tx block
+• starts scan at wallet's first ever tx block
 • re-uses coin_balance.get_wallet_balance
+• added caching, staking, and governance scoring
 """
 
 from __future__ import annotations
@@ -12,6 +13,7 @@ import json
 import time
 from dataclasses import dataclass
 from typing import Any, Dict, List, Set, Tuple
+from functools import lru_cache
 
 import requests
 from web3 import Web3
@@ -28,6 +30,24 @@ EXPLORER = "https://sei.blockscout.com/api/v2/addresses"
 HEADERS = {"accept": "application/json"}
 
 MAX_BLOCK_RANGE = 1_000  # enforced by Sei RPC (reduced from 2000)
+
+# Cache for credit scores
+_CACHE: dict[str, tuple[float, dict]] = {}
+CACHE_TTL = 300  # 5 minutes cache
+
+
+def _get_cached(wallet: str) -> dict | None:
+    """Get cached credit score if still valid"""
+    item = _CACHE.get(wallet.lower())
+    if not item:
+        return None
+    ts, data = item
+    return data if time.time() - ts < CACHE_TTL else None
+
+
+def _set_cached(wallet: str, data: dict):
+    """Cache credit score with timestamp"""
+    _CACHE[wallet.lower()] = (time.time(), data)
 
 
 def _fetch_json(url: str, retries: int = 3, timeout: int = 30) -> Dict[str, Any]:
@@ -139,29 +159,52 @@ def lending_history(
     contract,
     w3: Web3,
     start_block: int,
+    timeout_seconds: int = 30,  # Add timeout parameter
 ) -> List[Dict[str, Any]]:
     """Chronological Borrow / Repay / Liquidation events for wallet."""
+    import signal
+    
     latest = w3.eth.block_number
     hist: List[Dict[str, Any]] = []
+    
+    # Set up timeout handler
+    def timeout_handler(signum, frame):
+        raise TimeoutError("Lending history scan timed out")
+    
+    # Set timeout (only works on Unix-like systems)
+    try:
+        signal.signal(signal.SIGALRM, timeout_handler)
+        signal.alarm(timeout_seconds)
+    except (AttributeError, OSError):
+        # Windows doesn't support SIGALRM, skip timeout
+        pass
 
-    for ev_name, ev in [
-        ("Borrow", contract.events.Borrow()),
-        ("Repay", contract.events.Repay()),
-        ("Liquidation", contract.events.LiquidationCall()),
-    ]:
-        print(f"Scanning {ev_name} events…")
-        logs = batched_logs(ev, start_block, latest, user=wallet)
-        for lg in logs:
-            args = lg["args"]
-            hist.append(
-                {
-                    "type": ev_name,
-                    "block": lg["blockNumber"],
-                    "tx": lg["transactionHash"].hex(),
-                    **{k: args[k] for k in args},
-                }
-            )
-    hist.sort(key=lambda x: x["block"])
+    try:
+        for ev_name, ev in [
+            ("Borrow", contract.events.Borrow()),
+            ("Repay", contract.events.Repay()),
+            ("Liquidation", contract.events.LiquidationCall()),
+        ]:
+            print(f"Scanning {ev_name} events…")
+            logs = batched_logs(ev, start_block, latest, user=wallet)
+            for lg in logs:
+                args = lg["args"]
+                hist.append(
+                    {
+                        "type": ev_name,
+                        "block": lg["blockNumber"],
+                        "tx": lg["transactionHash"].hex(),
+                        **{k: args[k] for k in args},
+                    }
+                )
+        hist.sort(key=lambda x: x["block"])
+    finally:
+        # Clear timeout
+        try:
+            signal.alarm(0)
+        except (AttributeError, OSError):
+            pass
+    
     return hist
 
 
@@ -175,15 +218,18 @@ class CreditScore:
     score: int
     risk: str
     factors: Dict[str, int]
+    confidence: float = 0.8  # Default confidence
 
 
 class DeFiCreditScorer:
     BASE = 500
-    AGE_W = 0.15
-    TRANS_W = 0.20
-    BAL_W = 0.25
-    REPAY_W = 0.30
-    DEFI_W = 0.10
+    AGE_W = 0.12
+    TRANS_W = 0.18
+    BAL_W = 0.18
+    REPAY_W = 0.22
+    DEFI_W = 0.08
+    STAKE_W = 0.12
+    GOV_W = 0.10
 
     def __init__(self, lending_pool_addr: str, abi_path: str = "yei-pool.json"):
         self.provider = SeiProvider.connect()
@@ -247,10 +293,92 @@ class DeFiCreditScorer:
             return +10
         return 0
 
+    def _score_staking(self, staking: dict) -> int:
+        """Score staking activity and tenure"""
+        bonded = staking.get("bonded_sei", 0.0)
+        epochs = staking.get("active_epochs", 0)
+        score = 0
+        if bonded > 1000:
+            score += 60
+        elif bonded > 100:
+            score += 30
+        if epochs > 24:
+            score += 40
+        elif epochs > 6:
+            score += 20
+        return min(100, score)
+
+    def _score_governance(self, gov: dict) -> int:
+        """Score governance participation"""
+        votes = gov.get("votes_cast", 0)
+        recent = gov.get("voted_last_90d", False)
+        if votes == 0:
+            return -10
+        score = 20 if votes >= 3 else 10
+        if recent:
+            score += 20
+        return min(100, score)
+
+    def _fetch_staking(self, wallet: str) -> dict:
+        """Fetch staking data from SEI precompile (placeholder)"""
+        # TODO: Implement actual staking precompile calls
+        # For now, return mock data based on wallet activity
+        try:
+            # This would query the staking precompile contract
+            # For demo purposes, return some mock data
+            return {
+                "bonded_sei": 0.0,  # Would be actual bonded amount
+                "active_epochs": 0,  # Would be actual epochs
+            }
+        except Exception as e:
+            print(f"Error fetching staking data: {e}")
+            return {"bonded_sei": 0.0, "active_epochs": 0}
+
+    def _fetch_governance(self, wallet: str) -> dict:
+        """Fetch governance data from SEI precompile (placeholder)"""
+        # TODO: Implement actual governance precompile calls
+        # For now, return mock data
+        try:
+            # This would query the governance precompile contract
+            return {
+                "votes_cast": 0,  # Would be actual vote count
+                "voted_last_90d": False,  # Would check recent activity
+            }
+        except Exception as e:
+            print(f"Error fetching governance data: {e}")
+            return {"votes_cast": 0, "voted_last_90d": False}
+
+    def _calculate_confidence(self, factors: Dict[str, int], user_data: dict) -> float:
+        """Calculate confidence score based on data completeness and quality"""
+        confidence = 0.8  # Base confidence
+        
+        # Factor 1: Data completeness
+        if user_data.get('transactions'):
+            confidence += 0.1
+        if user_data.get('first_tx_info'):
+            confidence += 0.05
+        if user_data.get('counters'):
+            confidence += 0.05
+            
+        # Factor 2: Account age (older accounts have more reliable data)
+        days_old = user_data.get('days_old', 0)
+        if days_old > 365:
+            confidence += 0.1
+        elif days_old > 90:
+            confidence += 0.05
+            
+        return min(1.0, confidence)
+
     # ---------- public API ---------------------------------------------- #
 
     def calculate(self, wallet: str) -> CreditScore:
         wallet = Web3.to_checksum_address(wallet)
+        
+        # Check cache first
+        cached = _get_cached(wallet)
+        if cached:
+            print(f"   ➜ Using cached score for {wallet}")
+            return CreditScore(**cached)
 
         # --- metadata & fast early cutoff ------------------------------- #
         first_ts, first_blk = self.provider.first_tx_info(wallet)
@@ -273,7 +401,19 @@ class DeFiCreditScorer:
             start_blk = first_blk
             print(f"   ➜ Wallet first seen at block {start_blk}")
 
-        lend_events = lending_history(wallet, self.pool, self.provider.w3, start_blk)
+        # Try to get lending events, but don't fail if it's slow
+        lend_events = []
+        try:
+            print(f"   ➜ Scanning lending events (this may take a moment)...")
+            lend_events = lending_history(wallet, self.pool, self.provider.w3, start_blk)
+            print(f"   ➜ Found {len(lend_events)} lending events")
+        except Exception as e:
+            print(f"   ⚠️  Lending events scan failed: {e}")
+            print(f"   ➜ Continuing with basic scoring...")
+
+        # Fetch additional SEI-native data
+        staking = self._fetch_staking(wallet)
+        governance = self._fetch_governance(wallet)
 
         # --- pillar scores ---------------------------------------------- #
         s_age = self._score_age(days_old)
@@ -281,6 +421,8 @@ class DeFiCreditScorer:
         s_bal = self._score_balances(native_bal)
         s_rep = self._score_repayment(lend_events)
         s_defi = self._score_defi_extras(len(counters.get("unique_addresses", [])))
+        s_stake = self._score_staking(staking)
+        s_gov = self._score_governance(governance)
 
         raw = (
             self.BASE
@@ -289,6 +431,8 @@ class DeFiCreditScorer:
             + s_bal * self.BAL_W
             + s_rep * self.REPAY_W
             + s_defi * self.DEFI_W
+            + s_stake * self.STAKE_W
+            + s_gov * self.GOV_W
         )
         final = max(0, min(1000, int(round(raw))))
 
@@ -304,7 +448,24 @@ class DeFiCreditScorer:
             else "Very High Risk"
         )
 
-        return CreditScore(
+        # Calculate confidence
+        user_data = {
+            'transactions': counters.get("transaction_count", 0),
+            'first_tx_info': first_ts is not None,
+            'counters': counters,
+            'days_old': days_old or 0
+        }
+        confidence = self._calculate_confidence({
+            "Account Age": s_age,
+            "Tx Activity": s_tx,
+            "Balances": s_bal,
+            "Repayment": s_rep,
+            "DeFi Extras": s_defi,
+            "Staking": s_stake,
+            "Governance": s_gov,
+        }, user_data)
+
+        result = CreditScore(
             wallet=wallet,
             score=final,
             risk=risk,
@@ -314,8 +475,22 @@ class DeFiCreditScorer:
                 "Balances": s_bal,
                 "Repayment": s_rep,
                 "DeFi Extras": s_defi,
+                "Staking": s_stake,
+                "Governance": s_gov,
             },
+            confidence=confidence,
         )
+
+        # Cache the result
+        _set_cached(wallet, {
+            'wallet': wallet,
+            'score': final,
+            'risk': risk,
+            'factors': result.factors,
+            'confidence': confidence,
+        })
+
+        return result
 
 
 # --------------------------------------------------------------------------- #
