@@ -1,0 +1,97 @@
+version: '3.8'
+
+services:
+  # Redis for caching
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+
+  # PostgreSQL for persistent storage (optional)
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: defi_tracker
+      POSTGRES_USER: defi_user
+      POSTGRES_PASSWORD: defi_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - POSTGRES_URL=postgresql://defi_user:defi_password@postgres:5432/defi_tracker
+      - SEI_RPC_URL=https://evm-rpc.sei-apis.com
+      - ETHEREUM_RPC=${ETHEREUM_RPC}
+      - SOLANA_RPC_URL=${SOLANA_RPC_URL}
+      - MODEL_S3_BUCKET=${MODEL_S3_BUCKET}
+      - MODEL_S3_KEY=${MODEL_S3_KEY}
+      - RATE_LIMIT_PER_MINUTE=60
+      - CACHE_TTL_SECONDS=300
+    depends_on:
+      - redis
+      - postgres
+    restart: unless-stopped
+    volumes:
+      - ./backend:/app
+      - /app/__pycache__
+
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  # Nginx reverse proxy
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - ./ssl:/etc/nginx/ssl
+    depends_on:
+      - backend
+      - frontend
+    restart: unless-stopped
+
+  # ML training service (optional)
+  ml-trainer:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.ml
+    environment:
+      - MODEL_S3_BUCKET=${MODEL_S3_BUCKET}
+      - MODEL_S3_KEY=${MODEL_S3_KEY}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+    volumes:
+      - ./backend:/app
+    profiles:
+      - training
+    restart: "no"
+
+volumes:
+  redis_data:
+  postgres_data:

@@ -4,13 +4,19 @@ import { WalletInput } from "@/components/WalletInput";
 import { CreditScoreDisplay } from "@/components/CreditScoreDisplay";
 import { Chatbot } from "@/components/Chatbot";
 import { useToast } from "@/hooks/use-toast";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 
-// Real API call to Flask backend
-const fetchCreditScore = async (walletAddress: string) => {
+// Real API call to production backend
+const fetchCreditScore = async (walletAddress: string, chain: string = 'sei') => {
   const t0 = performance.now();
   
-  // Use the Flask backend API
-  const response = await fetch(`http://localhost:5000/score/${walletAddress}`, {
+  // Use the production API
+  const apiUrl = process.env.NODE_ENV === 'production' 
+    ? `https://api.defi-credit-tracker.com/v1/score/${walletAddress}?chain=${chain}`
+    : `http://localhost/v1/score/${walletAddress}?chain=${chain}`;
+  
+  const response = await fetch(apiUrl, {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
@@ -40,15 +46,18 @@ const fetchCreditScore = async (walletAddress: string) => {
       governance: data.factors['Governance'] || 0,
     },
     walletAddress: data.wallet,
+    chain: data.chain,
     latencyMs: ms,
     confidence: data.confidence,
     risk: data.risk,
+    modelVersion: data.model_version,
   };
 };
 
 const Index = () => {
   const [creditData, setCreditData] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedChain, setSelectedChain] = useState('sei');
   const { toast } = useToast();
 
   const handleWalletSubmit = async (walletAddress: string) => {
@@ -56,7 +65,7 @@ const Index = () => {
     setCreditData(null);
     
     try {
-      const data = await fetchCreditScore(walletAddress);
+      const data = await fetchCreditScore(walletAddress, selectedChain);
       setCreditData(data);
       toast({
         title: "Credit Score Retrieved",
@@ -81,13 +90,40 @@ const Index = () => {
       <section className="py-16 px-4">
         <div className="max-w-6xl mx-auto">
           {!creditData ? (
-            <WalletInput onSubmit={handleWalletSubmit} isLoading={isLoading} />
+            <div className="space-y-6">
+              {/* Chain Selector */}
+              <div className="flex justify-center">
+                <div className="flex items-center space-x-4">
+                  <label className="text-sm font-medium text-muted-foreground">Select Blockchain:</label>
+                  <Select value={selectedChain} onValueChange={setSelectedChain}>
+                    <SelectTrigger className="w-32">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="sei">SEI</SelectItem>
+                      <SelectItem value="eth">Ethereum</SelectItem>
+                      <SelectItem value="sol">Solana</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              
+              <WalletInput onSubmit={handleWalletSubmit} isLoading={isLoading} />
+            </div>
           ) : (
             <div className="space-y-8">
+              {/* Chain Badge */}
+              <div className="flex justify-center">
+                <Badge variant="outline" className="text-sm">
+                  {creditData.chain?.toUpperCase() || selectedChain.toUpperCase()}
+                </Badge>
+              </div>
+              
               <CreditScoreDisplay data={creditData} />
               <div className="text-center space-y-4">
                 <div className="text-sm text-muted-foreground">
                   Response time: {creditData.latencyMs}ms | Confidence: {Math.round(creditData.confidence * 100)}%
+                  {creditData.modelVersion && ` | Model: ${creditData.modelVersion}`}
                 </div>
                 <button
                   onClick={() => setCreditData(null)}

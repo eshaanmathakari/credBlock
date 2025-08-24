@@ -47,7 +47,7 @@ class ProxyConfig:
     ARBITRUM_RPC = "https://arbitrum-mainnet.infura.io/v3/YOUR_INFURA_KEY"
     
     # Price Data APIs (All REAL URLs)
-    COINGECKO_API = "https://api.coingecko.com/api/v3"
+    COINMARKETCAP_API = "https://pro-api.coinmarketcap.com/v1"
     COINBASE_API = "https://api.exchange.coinbase.com"
     BINANCE_API = "https://api.binance.com/api/v3"
     CHAINLINK_API = "https://api.chain.link/v1"
@@ -63,7 +63,7 @@ class ProxyConfig:
     COINBASE_WS = "wss://ws-feed.exchange.coinbase.com"
     
     # API Keys (Set in environment)
-    COINGECKO_API_KEY = os.getenv('COINGECKO_API_KEY', '')
+    CMC_API_KEY = os.getenv('CMC_API_KEY', '')
     ETHERSCAN_API_KEY = os.getenv('ETHERSCAN_API_KEY', '')
     
 config = ProxyConfig()
@@ -217,7 +217,7 @@ class AdvancedDeFiProxy:
         
         # Create tasks for parallel execution
         tasks = [
-            self._fetch_coingecko_price(token_address),
+            self._fetch_coinmarketcap_price(token_address),
             self._fetch_coinbase_price(token_address),  
             self._fetch_binance_price(token_address),
             self._fetch_uniswap_price(token_address, chain),
@@ -228,7 +228,7 @@ class AdvancedDeFiProxy:
         
         for i, result in enumerate(results):
             if not isinstance(result, Exception) and result:
-                source_names = ['coingecko', 'coinbase', 'binance', 'uniswap', 'chainlink']
+                source_names = ['coinmarketcap', 'coinbase', 'binance', 'uniswap', 'chainlink']
                 sources.append({
                     'price': result,
                     'source': source_names[i],
@@ -238,25 +238,43 @@ class AdvancedDeFiProxy:
         
         return sources
     
-    async def _fetch_coingecko_price(self, token_address: str) -> Optional[float]:
-        """Fetch price from CoinGecko API"""
+    async def _fetch_coinmarketcap_price(self, token_address: str) -> Optional[float]:
+        """Fetch price from CoinMarketCap API"""
         try:
-            url = f"{config.COINGECKO_API}/simple/token_price/ethereum"
+            if not config.CMC_API_KEY:
+                logger.warning("CoinMarketCap API key not configured")
+                return None
+            
+            # First, try to get the token symbol from the address
+            symbol = await self._get_token_symbol_for_cmc(token_address)
+            if not symbol:
+                logger.warning(f"Could not find symbol for token address: {token_address}")
+                return None
+                
+            url = f"{config.COINMARKETCAP_API}/cryptocurrency/quotes/latest"
             params = {
-                'contract_addresses': token_address,
-                'vs_currencies': 'usd'
+                'symbol': symbol,
+                'convert': 'USD'
             }
-            if config.COINGECKO_API_KEY:
-                params['x_cg_demo_api_key'] = config.COINGECKO_API_KEY
+            headers = {
+                'X-CMC_PRO_API_KEY': config.CMC_API_KEY
+            }
                 
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, params=params, timeout=5) as response:
+                async with session.get(url, params=params, headers=headers, timeout=10) as response:
                     if response.status == 200:
                         data = await response.json()
-                        return data.get(token_address.lower(), {}).get('usd')
+                        # CoinMarketCap returns data with the symbol as key
+                        token_data = data.get('data', {}).get(symbol)
+                        if token_data:
+                            return float(token_data.get('quote', {}).get('USD', {}).get('price', 0))
+                    elif response.status == 429:
+                        logger.warning("CoinMarketCap API rate limit exceeded")
+                    else:
+                        logger.error(f"CoinMarketCap API error: {response.status}")
         except Exception as e:
-            logger.error(f"CoinGecko API error: {e}")
-            return None
+            logger.error(f"CoinMarketCap API error: {e}")
+        return None
     
     async def _fetch_coinbase_price(self, token_address: str) -> Optional[float]:
         """Fetch price from Coinbase API"""
@@ -552,7 +570,7 @@ class AdvancedDeFiProxy:
         """Get reliability weight for data source"""
         weights = {
             'chainlink': 0.95,
-            'coingecko': 0.88,
+            'coinmarketcap': 0.90,
             'coinbase': 0.92,
             'binance': 0.85,
             'uniswap': 0.82
@@ -563,6 +581,69 @@ class AdvancedDeFiProxy:
         """Get token symbol from address (implement token mapping)"""
         # This would require a token address to symbol mapping
         # For now, return None - implement based on your needs
+        return None
+    
+    async def _get_token_symbol_for_cmc(self, token_address: str) -> Optional[str]:
+        """Get token symbol for CoinMarketCap API"""
+        # Common token address to symbol mapping
+        # This is a simplified mapping - in production, you'd want a more comprehensive database
+        token_mapping = {
+            # USDT
+            "0xdac17f958d2ee523a2206206994597c13d831ec7": "USDT",
+            "0xa0b86a33e6441b8c4c8c8c8c8c8c8c8c8c8c8c8c8": "USDT",  # Polygon USDT
+            # USDC
+            "0xa0b86a33e6441b8c4c8c8c8c8c8c8c8c8c8c8c8c8c": "USDC",
+            "0x2791bca1f2de4661ed88a30c99a7a9449aa84174": "USDC",  # Polygon USDC
+            # WETH
+            "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2": "WETH",
+            # WBTC
+            "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599": "WBTC",
+            # DAI
+            "0x6b175474e89094c44da98b954eedeac495271d0f": "DAI",
+            # UNI
+            "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984": "UNI",
+            # LINK
+            "0x514910771af9ca656af840dff83e8264ecf986ca": "LINK",
+            # AAVE
+            "0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9": "AAVE",
+            # CRV
+            "0xd533a949740bb3306d119cc777fa900ba034cd52": "CRV",
+            # COMP
+            "0xc00e94cb662c3520282e6f5717214004a7f26888": "COMP",
+            # MKR
+            "0x9f8f72aa9304c8b593d555f12ef6589cc3a579a2": "MKR",
+            # SNX
+            "0xc011a73ee8576fb46f5e1c5751ca3b9fe0f2a6f": "SNX",
+            # YFI
+            "0x0bc529c00c6401aef6d220be8c6ea1667f6ad93e": "YFI",
+            # BAL
+            "0xba100000625a3754423978a60c9317c58a424e3d": "BAL",
+            # SUSHI
+            "0x6b3595068778dd592e39a122f4f5a5cf09c90fe2": "SUSHI",
+            # 1INCH
+            "0x111111111117dc0aa78b770fa6a738034120c302": "1INCH",
+            # MATIC
+            "0x7d1afa7b718fb893db30a3abc0cfc608aacfebb0": "MATIC",
+            # SHIB
+            "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce": "SHIB",
+            # DOGE
+            "0x3832d2f059e55934220881f831be501d180671a7": "DOGE",  # RenDOGE
+            # PEPE
+            "0x6982508145454ce325ddbe47a25d4ec3d2311933": "PEPE",
+        }
+        
+        # Normalize address (remove 0x prefix and convert to lowercase)
+        normalized_address = token_address.lower()
+        if normalized_address.startswith('0x'):
+            normalized_address = normalized_address[2:]
+        
+        # Search for the address in our mapping
+        for addr, symbol in token_mapping.items():
+            if addr.lower().replace('0x', '') == normalized_address:
+                return symbol
+        
+        # If not found, try to get from Etherscan or other sources
+        # For now, return None - you could implement additional lookups here
         return None
     
     # BACKGROUND TASKS

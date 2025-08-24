@@ -1,9 +1,10 @@
 """
-Credit-scoring engine for Sei wallets – FINAL FAST VERSION
+Credit-scoring engine for Sei wallets – PRODUCTION VERSION
 • automatic 2 000-block batching (provider limit)
 • starts scan at wallet's first ever tx block
 • re-uses coin_balance.get_wallet_balance
-• added caching, staking, and governance scoring
+• integrated SEI staking and governance services
+• enhanced caching and error handling
 """
 
 from __future__ import annotations
@@ -11,14 +12,17 @@ from __future__ import annotations
 import datetime as _dt
 import json
 import time
+import asyncio
 from dataclasses import dataclass
-from typing import Any, Dict, List, Set, Tuple
+from typing import Any, Dict, List, Set, Tuple, Optional
 from functools import lru_cache
 
 import requests
 from web3 import Web3
 
 from coin_balance import get_wallet_balance  # ← reuse working routine
+from services.sei_staking import SEIStakingService, StakingMetrics
+from services.sei_governance import SEIGovernanceService, GovernanceMetrics
 
 
 # --------------------------------------------------------------------------- #
@@ -231,7 +235,7 @@ class DeFiCreditScorer:
     STAKE_W = 0.12
     GOV_W = 0.10
 
-    def __init__(self, lending_pool_addr: str, abi_path: str = "yei-pool.json"):
+    def __init__(self, lending_pool_addr: str, abi_path: str = "yei-pool.json", redis_client=None):
         self.provider = SeiProvider.connect()
         with open(abi_path, "r", encoding="utf-8") as fh:
             abi = json.load(fh)
@@ -239,7 +243,12 @@ class DeFiCreditScorer:
             address=Web3.to_checksum_address(lending_pool_addr),
             abi=abi,
         )
-        print("Connected to Sei & lending pool")
+        
+        # Initialize SEI services
+        self.staking_service = SEIStakingService(redis_client=redis_client)
+        self.governance_service = SEIGovernanceService(redis_client=redis_client)
+        
+        print("Connected to Sei & lending pool with staking/governance services")
 
     # ---------- pillar mini-scores --------------------------------------- #
 
@@ -293,60 +302,47 @@ class DeFiCreditScorer:
             return +10
         return 0
 
-    def _score_staking(self, staking: dict) -> int:
-        """Score staking activity and tenure"""
-        bonded = staking.get("bonded_sei", 0.0)
-        epochs = staking.get("active_epochs", 0)
-        score = 0
-        if bonded > 1000:
-            score += 60
-        elif bonded > 100:
-            score += 30
-        if epochs > 24:
-            score += 40
-        elif epochs > 6:
-            score += 20
-        return min(100, score)
+    def _score_staking(self, metrics: StakingMetrics) -> int:
+        """Score staking activity and tenure using real metrics"""
+        return self.staking_service.calculate_staking_score(metrics)
 
-    def _score_governance(self, gov: dict) -> int:
-        """Score governance participation"""
-        votes = gov.get("votes_cast", 0)
-        recent = gov.get("voted_last_90d", False)
-        if votes == 0:
-            return -10
-        score = 20 if votes >= 3 else 10
-        if recent:
-            score += 20
-        return min(100, score)
+    def _score_governance(self, metrics: GovernanceMetrics) -> int:
+        """Score governance participation using real metrics"""
+        return self.governance_service.calculate_governance_score(metrics)
 
-    def _fetch_staking(self, wallet: str) -> dict:
-        """Fetch staking data from SEI precompile (placeholder)"""
-        # TODO: Implement actual staking precompile calls
-        # For now, return mock data based on wallet activity
+    async def _fetch_staking(self, wallet: str) -> StakingMetrics:
+        """Fetch staking data from SEI precompile using service"""
         try:
-            # This would query the staking precompile contract
-            # For demo purposes, return some mock data
-            return {
-                "bonded_sei": 0.0,  # Would be actual bonded amount
-                "active_epochs": 0,  # Would be actual epochs
-            }
+            return await self.staking_service.get_staking_metrics(wallet)
         except Exception as e:
             print(f"Error fetching staking data: {e}")
-            return {"bonded_sei": 0.0, "active_epochs": 0}
+            return StakingMetrics(
+                bonded_amount=0.0,
+                active_epochs=0,
+                total_rewards=0.0,
+                slashing_penalties=0.0,
+                delegation_count=0,
+                last_delegation_epoch=None,
+                staking_duration_days=0,
+                is_active_staker=False
+            )
 
-    def _fetch_governance(self, wallet: str) -> dict:
-        """Fetch governance data from SEI precompile (placeholder)"""
-        # TODO: Implement actual governance precompile calls
-        # For now, return mock data
+    async def _fetch_governance(self, wallet: str) -> GovernanceMetrics:
+        """Fetch governance data from SEI precompile using service"""
         try:
-            # This would query the governance precompile contract
-            return {
-                "votes_cast": 0,  # Would be actual vote count
-                "voted_last_90d": False,  # Would check recent activity
-            }
+            return await self.governance_service.get_governance_metrics(wallet)
         except Exception as e:
             print(f"Error fetching governance data: {e}")
-            return {"votes_cast": 0, "voted_last_90d": False}
+            return GovernanceMetrics(
+                total_votes_cast=0,
+                proposals_participated=0,
+                recent_votes_90d=0,
+                voting_power_used=0.0,
+                last_vote_timestamp=None,
+                participation_rate=0.0,
+                is_active_voter=False,
+                governance_score=0.0
+            )
 
     def _calculate_confidence(self, factors: Dict[str, int], user_data: dict) -> float:
         """Calculate confidence score based on data completeness and quality"""
@@ -371,7 +367,8 @@ class DeFiCreditScorer:
 
     # ---------- public API ---------------------------------------------- #
 
-    def calculate(self, wallet: str) -> CreditScore:
+    async def calculate_async(self, wallet: str) -> CreditScore:
+        """Async version of calculate method with real SEI services"""
         wallet = Web3.to_checksum_address(wallet)
         
         # Check cache first
@@ -411,9 +408,29 @@ class DeFiCreditScorer:
             print(f"   ⚠️  Lending events scan failed: {e}")
             print(f"   ➜ Continuing with basic scoring...")
 
-        # Fetch additional SEI-native data
-        staking = self._fetch_staking(wallet)
-        governance = self._fetch_governance(wallet)
+        # Fetch additional SEI-native data using async services
+        staking, governance = await asyncio.gather(
+            self._fetch_staking(wallet),
+            self._fetch_governance(wallet),
+            return_exceptions=True
+        )
+        
+        # Handle exceptions from async calls
+        if isinstance(staking, Exception):
+            print(f"   ⚠️  Staking data fetch failed: {staking}")
+            staking = StakingMetrics(
+                bonded_amount=0.0, active_epochs=0, total_rewards=0.0,
+                slashing_penalties=0.0, delegation_count=0, last_delegation_epoch=None,
+                staking_duration_days=0, is_active_staker=False
+            )
+        
+        if isinstance(governance, Exception):
+            print(f"   ⚠️  Governance data fetch failed: {governance}")
+            governance = GovernanceMetrics(
+                total_votes_cast=0, proposals_participated=0, recent_votes_90d=0,
+                voting_power_used=0.0, last_vote_timestamp=None, participation_rate=0.0,
+                is_active_voter=False, governance_score=0.0
+            )
 
         # --- pillar scores ---------------------------------------------- #
         s_age = self._score_age(days_old)
@@ -491,6 +508,19 @@ class DeFiCreditScorer:
         })
 
         return result
+
+    def calculate(self, wallet: str) -> CreditScore:
+        """Synchronous wrapper for async calculate method"""
+        try:
+            return asyncio.run(self.calculate_async(wallet))
+        except RuntimeError:
+            # If already in event loop, create new one
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                return loop.run_until_complete(self.calculate_async(wallet))
+            finally:
+                loop.close()
 
 
 # --------------------------------------------------------------------------- #

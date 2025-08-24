@@ -28,3 +28,21 @@ backend/package-lock.json
 /backend/__pycache__
 backend/__pycache__/coin_balance.cpython-311.pyc
 backend/__pycache__/credit_scorer.cpython-311.pyc
+aws/
+env_template/
+
+# =============================================================================
+# SENSITIVE FILES - DO NOT COMMIT
+# =============================================================================
+
+# Environment template files with real credentials
+env.template
+docker-compose.ec2.yml
+
+# Any other files that might contain credentials
+**/credentials.json
+**/secrets.json
+**/config.json
+**/private.key
+**/*.pem
+**/*.key

@@ -1,0 +1,42 @@
+# Core web framework
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.5.0
+
+# Database and caching
+redis[hiredis]==5.0.1
+asyncpg==0.29.0
+
+# Web3 and blockchain
+web3==6.11.3
+eth-account==0.9.0
+
+# HTTP client
+aiohttp==3.9.1
+requests==2.31.0
+
+# Data processing and ML
+numpy==1.24.3
+pandas==2.1.4
+scikit-learn==1.3.2
+xgboost==2.0.2
+lightgbm==4.1.0
+joblib==1.3.2
+
+# AWS integration
+boto3==1.34.0
+
+# Utilities
+python-dotenv==1.0.0
+python-multipart==0.0.6
+pytest==7.4.3
+pytest-asyncio==0.21.1
+
+# Optional: Solana support (uncomment when implementing)
+# solana==0.30.2
+# base58==2.1.1
+
+# Development dependencies
+black==23.11.0
+flake8==6.1.0
+mypy==1.7.1
