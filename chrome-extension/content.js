@@ -2,8 +2,8 @@
 (function() {
   'use strict';
   
-  // API base URL
-  const API_BASE = 'http://localhost:5000';
+  // API base URL - updated to production backend
+  const API_BASE = 'http://44.202.188.114';
   
   // Check if we're on a wallet address page
   const addressMatch = location.pathname.match(/address\/(0x[a-fA-F0-9]{40})/);
@@ -149,7 +149,7 @@
     const t0 = performance.now();
     
     try {
-      const response = await fetch(`${API_BASE}/score/${address}`, {
+      const response = await fetch(`${API_BASE}/v1/score/${address}?chain=sei`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',

@@ -9,7 +9,8 @@
   ],
   "host_permissions": [
     "https://sei.blockscout.com/*",
-    "http://localhost:5000/*"
+    "http://localhost:5000/*",
+    "http://44.202.188.114/*"
   ],
   "action": {
     "default_popup": "popup.html",

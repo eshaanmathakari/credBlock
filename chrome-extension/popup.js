@@ -1,5 +1,5 @@
-// API base URL - change this to your deployed backend
-const API_BASE = 'http://localhost:5000';
+// API base URL - updated to production backend
+const API_BASE = 'http://44.202.188.114';
 
 // DOM elements
 const walletInput = document.getElementById('wallet-address');
@@ -22,7 +22,7 @@ async function getCreditScore(walletAddress) {
   const t0 = performance.now();
   
   try {
-    const response = await fetch(`${API_BASE}/score/${walletAddress}`, {
+    const response = await fetch(`${API_BASE}/v1/score/${walletAddress}?chain=sei`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',

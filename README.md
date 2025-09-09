@@ -1,21 +1,80 @@
-# DeFi Credit Tracker - Production Edition
+# CredBlock - DeFi Credit Tracker
 
-A comprehensive DeFi credit scoring platform with multichain support, real-time staking/governance data, and ML-powered risk assessment.
+📌 **Overview**
 
-## Features
+DeFi Credit Tracker (CredBlock) is a decentralized credit scoring and risk analysis platform built to bring transparency, accessibility, and fairness to Web3 financial ecosystems.
 
-### 🚀 Production-Ready Features
-- **Real SEI Staking/Governance Integration**: Live data from SEI precompile contracts
-- **Multichain Support**: SEI, Ethereum, and Solana with unified API
-- **ML-Powered Scoring**: Advanced feature engineering and model training pipeline
-- **Production API**: FastAPI with rate limiting, caching, and health checks
-- **Mobile-Ready**: RESTful API with consistent response schemas
+Instead of relying on opaque, centralized credit bureaus, CredBlock leverages on-chain activity, multi-chain wallet analytics, and machine learning models to generate a dynamic creditworthiness profile for users across SEI, Ethereum, and Solana networks.
 
-### 🔧 Technical Stack
-- **Backend**: FastAPI, Redis, PostgreSQL, Web3
-- **ML Pipeline**: Scikit-learn, XGBoost, LightGBM with S3 model storage
-- **Frontend**: React, TypeScript, Tailwind CSS
-- **Chrome Extension**: Real-time credit scores on blockchain explorers
+## 🚀 Key Features
+
+### 🔗 Multi-Chain Support
+Integrated with SEI, Ethereum, and Solana RPC endpoints to track wallet activity, staking, governance, and transaction histories.
+
+### 🤖 AI-Powered Credit Scoring
+ML models (hosted on AWS & auto-updated via S3) generate risk-adjusted credit scores using wallet behavior, portfolio diversity, and transaction frequency.
+
+### 📊 Real-Time Risk Analytics
+Monitors on-chain activity with Redis caching and PostgreSQL persistence to deliver fast, low-latency queries.
+
+### ⚡ API & Dashboard
+REST APIs with CORS/host filtering and a frontend dashboard to visualize scores, history, and DeFi credit profiles.
+
+### 🛡️ Security & Transparency
+Built with clear environment-based configuration, API rate limits, and Prometheus metrics for monitoring.
+
+## 🛠️ Tech Stack
+
+**Backend:** Python (FastAPI), Node.js, Redis, PostgreSQL
+
+**Frontend:** React + Vite + TailwindCSS
+
+**Blockchain Integrations:**
+- SEI Precompiles (Staking & Governance)
+- Ethereum RPC & Etherscan APIs
+- Solana RPC & WebSocket APIs
+
+**Infrastructure:**
+- Docker & Docker Compose (multi-arch: ARM64 & AMD64)
+- AWS EC2 (Amazon Linux 2023)
+- AWS ECR (container registry), S3 (ML models), CloudWatch/Grafana
+
+**Machine Learning:** Joblib models for credit scoring, cached with TTL for fast inference
+
+## 🌐 Architecture
+
+**Data Layer** – Collects wallet data from SEI, Ethereum, Solana.
+
+**Processing Layer** – ML models analyze wallet activity and generate credit scores.
+
+**API Layer** – Exposes credit scoring APIs and monitoring endpoints.
+
+**Frontend Dashboard** – Displays credit scores and wallet health in a user-friendly way.
+
+## 💡 Why This Matters
+
+Traditional credit systems exclude millions. DeFi and Web3 offer inclusion, but lack trusted creditworthiness tools.
+
+CredBlock bridges this gap by:
+- Building trustless, transparent scoring
+- Encouraging responsible borrowing/lending in DeFi
+- Enabling new forms of on-chain credit markets
+
+## 🏆 Hackathon Contribution
+
+- Multi-chain integration (SEI, Ethereum, Solana)
+- Containerized multi-arch deployment for portability
+- AI-driven credit scoring pipeline
+- API + dashboard ready for real DeFi apps to consume
+
+## 🔮 Future Roadmap
+
+- Expand to more chains (Polygon, BNB, Avalanche)
+- Integrate zkML for privacy-preserving credit scoring
+- Launch a mobile-first version for DeFi users globally
+- Build partnerships with DeFi lenders & wallets for adoption
+
+---
 
 ## Quick Start
 
@@ -259,20 +318,8 @@ For support and questions:
 - Join our Discord community
 - Email: support@defi-credit-tracker.com
 
-## Roadmap
-
-### Phase 2 (Q2 2024)
-- [ ] Real-time price feeds
-- [ ] Advanced ML models (deep learning)
-- [ ] More blockchain support (Polygon, Arbitrum)
-- [ ] Mobile app development
-
-### Phase 3 (Q3 2024)
-- [ ] DeFi protocol integrations
-- [ ] Social credit scoring
-- [ ] API marketplace
-- [ ] Enterprise features
-
 ---
+
+**✦ CredBlock = AI x DeFi x Web3 Transparency ✦**
 
 **Built with ❤️ for the DeFi community**

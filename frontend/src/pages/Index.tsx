@@ -11,9 +11,9 @@ import { Badge } from "@/components/ui/badge";
 const fetchCreditScore = async (walletAddress: string, chain: string = 'sei') => {
   const t0 = performance.now();
   
-  // Use the production API
+  // Use the production API - update this to your actual AWS endpoint
   const apiUrl = process.env.NODE_ENV === 'production' 
-    ? `https://api.defi-credit-tracker.com/v1/score/${walletAddress}?chain=${chain}`
+    ? `http://44.202.188.114/v1/score/${walletAddress}?chain=${chain}`
     : `http://localhost/v1/score/${walletAddress}?chain=${chain}`;
   
   const response = await fetch(apiUrl, {
