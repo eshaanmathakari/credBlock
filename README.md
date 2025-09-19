@@ -161,6 +161,9 @@ BINANCE_API_KEY=your_binance_key
 # Additional RPC URLs
 POLYGON_RPC=https://polygon-mainnet.infura.io/v3/YOUR_KEY
 ARBITRUM_RPC=https://arbitrum-mainnet.infura.io/v3/YOUR_KEY
+
+# Frontend Configuration
+VITE_API_BASE_URL=http://localhost:8000
 ```
 
 ## API Documentation

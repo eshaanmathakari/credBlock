@@ -62,29 +62,30 @@ The single container deployment has been **successfully tested** and is working 
 
 ```bash
 # 1. Create .env file
-cp env.template .env
+cp .env.example .env
 
 # 2. Edit .env with your credentials
 nano .env
 
 # 3. Deploy locally
-./deploy-local.sh
+./deploy.sh
 ```
 
 **Required .env variables for local testing:**
 ```bash
-CMC_API_KEY=827927aa-6406-446b-8464-365413dc8536  # ✅ You have this
-ETHEREUM_RPC=https://mainnet.infura.io/v3/YOUR_ID  # 🔧 Get from Infura
-ETHERSCAN_API_KEY=your_etherscan_key               # 🔧 Get from Etherscan
+ETHEREUM_RPC=https://mainnet.infura.io/v3/<your-project-id>
+ETHERSCAN_API_KEY=<your-etherscan-key>
+SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
+VITE_API_BASE_URL=http://localhost:8000
 ```
 
 **✅ Test Results:**
 ```bash
 🎉 CredBlock is now running!
 ==============================
-🌐 Frontend: http://localhost
-📚 API Docs: http://localhost/docs
-🏥 Health: http://localhost/health
+🌐 Frontend: http://localhost:3000
+📚 API Docs: http://localhost:8000/docs
+🏥 Health: http://localhost:8000/health
 ```
 
 ### 2. AWS ECR Deployment
@@ -105,12 +106,12 @@ MODEL_S3_BUCKET=your-s3-bucket-name
 ```
 defi-credit-tracker/
 ├── Dockerfile                    # Single container build ✅
-├── docker-compose.simple.yml     # Local deployment ✅
-├── docker-compose.ec2.yml        # EC2 deployment (generated)
-├── deploy-local.sh              # Local deployment script ✅
+├── docker-compose.simple.yml     # Local deployment sample ✅
+├── docker-compose.ec2.yml        # EC2 deployment (sample)
+├── deploy.sh                    # Local deployment script ✅
 ├── deploy-aws.sh                # AWS ECR deployment script ✅
 ├── build-frontend.sh            # Frontend build script ✅
-├── .env                         # Environment variables ✅
+├── .env.example                 # Environment template ✅
 ├── backend/                     # FastAPI backend ✅
 ├── frontend/                    # React frontend ✅
 └── DEPLOYMENT_GUIDE.md          # This guide
@@ -121,17 +122,17 @@ defi-credit-tracker/
 ### Local Testing (VERIFIED)
 ```bash
 # Health check ✅
-curl http://localhost/health
+curl http://localhost:8000/health
 # Response: {"status":"healthy","version":"2.0.0",...}
 
 # Frontend ✅
-open http://localhost
+open http://localhost:3000
 
 # API docs ✅
-open http://localhost/docs
+open http://localhost:8000/docs
 
 # Test credit scoring ✅
-curl "http://localhost/api/v1/score/0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6?chain=eth"
+curl "http://localhost:8000/v1/score/0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6?chain=eth"
 ```
 
 ### AWS Testing

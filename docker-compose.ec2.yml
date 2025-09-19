@@ -1,5 +1,6 @@
+version: '3.8'
+
 services:
-  # Redis for caching (optional but recommended)
   redis:
     image: redis:7-alpine
     ports:
@@ -9,25 +10,22 @@ services:
     command: redis-server --appendonly yes
     restart: unless-stopped
 
-  # Single container with frontend + backend
   credblock:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: <your-account-id>.dkr.ecr.us-east-1.amazonaws.com/credblock:latest
     ports:
       - "80:80"
     environment:
       - REDIS_URL=redis://redis:6379
       - SEI_RPC_URL=https://evm-rpc.sei-apis.com
-      - ETHEREUM_RPC=${ETHEREUM_RPC:-https://mainnet.infura.io/v3/YOUR_INFURA_PROJECT_ID}
+      - ETHEREUM_RPC=${ETHEREUM_RPC}
       - SOLANA_RPC_URL=${SOLANA_RPC_URL:-https://api.mainnet-beta.solana.com}
       - CMC_API_KEY=${CMC_API_KEY}
       - ETHERSCAN_API_KEY=${ETHERSCAN_API_KEY}
       - MODEL_S3_BUCKET=${MODEL_S3_BUCKET}
-      - MODEL_S3_KEY=${MODEL_S3_KEY:-credit_score_model_v1.joblib}
+      - MODEL_S3_KEY=${MODEL_S3_KEY:-models/credit_scorer.joblib}
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-us-east-1}
+      - AWS_DEFAULT_REGION=us-east-1
       - RATE_LIMIT_PER_MINUTE=60
       - CACHE_TTL_SECONDS=300
       - LOG_LEVEL=INFO
@@ -35,8 +33,6 @@ services:
     depends_on:
       - redis
     restart: unless-stopped
-    volumes:
-      - ./backend:/app/backend
 
 volumes:
   redis_data:

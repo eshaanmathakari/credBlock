@@ -16,7 +16,7 @@ git clone <repository-url>
 cd defi-credit-tracker
 
 # Copy environment template
-cp env.template .env
+cp .env.example .env
 ```
 
 ## 2. Configure Environment
@@ -25,15 +25,19 @@ Edit the `.env` file with your configuration:
 
 ```bash
 # Required: Ethereum RPC endpoint
-ETHEREUM_RPC=https://mainnet.infura.io/v3/YOUR_INFURA_PROJECT_ID
+ETHEREUM_RPC=https://mainnet.infura.io/v3/<your-project-id>
+ETHERSCAN_API_KEY=<your-etherscan-key>
 
 # Required: Solana RPC endpoint  
 SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
 
 # Optional: For ML model storage
-MODEL_S3_BUCKET=your-ml-models-bucket
-AWS_ACCESS_KEY_ID=your_aws_access_key
-AWS_SECRET_ACCESS_KEY=your_aws_secret_key
+MODEL_S3_BUCKET=<your-ml-models-bucket>
+AWS_ACCESS_KEY_ID=<your-aws-access-key>
+AWS_SECRET_ACCESS_KEY=<your-aws-secret-key>
+
+# Frontend configuration
+VITE_API_BASE_URL=http://localhost:8000
 ```
 
 ## 3. Deploy

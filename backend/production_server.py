@@ -10,10 +10,10 @@ import asyncio
 from typing import Dict, Optional, Any, List
 from dataclasses import dataclass
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, validator, ValidationError
 import uvicorn
 import redis.asyncio as redis
 from web3 import Web3
@@ -393,23 +393,29 @@ class ProductionCreditTracker:
         async def startup_event():
             await self.startup()
         
-        @self.app.get("/v1/score/{wallet}")
+        @self.app.get("/v1/score/{wallet}", response_model=CreditScoreResponse)
         async def get_credit_score_v1(
+            request: Request,
             wallet: str,
             chain: str = "sei",
-            request: CreditScoreRequest = Depends()
         ):
             """Get credit score for a wallet (v1 API)"""
-            client_ip = request.client.host if hasattr(request, 'client') else "unknown"
-            return await self.get_credit_score(wallet, chain, client_ip)
-        
-        @self.app.post("/v1/score")
+            try:
+                payload = CreditScoreRequest(wallet=wallet, chain=chain)
+            except ValidationError as exc:
+                raise HTTPException(status_code=422, detail=exc.errors()) from exc
+
+            client_ip = request.client.host if request.client else "unknown"
+            return await self.get_credit_score(payload.wallet, payload.chain, client_ip)
+
+        @self.app.post("/v1/score", response_model=CreditScoreResponse)
         async def get_credit_score_post(
-            request: CreditScoreRequest,
-            client_ip: str = Depends(lambda req: req.client.host if hasattr(req, 'client') else "unknown")
+            request: Request,
+            payload: CreditScoreRequest,
         ):
             """Get credit score via POST request"""
-            return await self.get_credit_score(request.wallet, request.chain, client_ip)
+            client_ip = request.client.host if request.client else "unknown"
+            return await self.get_credit_score(payload.wallet, payload.chain, client_ip)
         
         @self.app.get("/health")
         async def health():

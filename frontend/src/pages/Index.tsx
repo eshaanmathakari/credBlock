@@ -7,14 +7,14 @@ import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 
-// Real API call to production backend
+const fallbackBase = typeof window !== "undefined" ? window.location.origin : "http://localhost:8000";
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || fallbackBase).replace(/\/$/, "");
+
+// Real API call to backend; base URL is configurable via VITE_API_BASE_URL
 const fetchCreditScore = async (walletAddress: string, chain: string = 'sei') => {
   const t0 = performance.now();
   
-  // Use the production API - update this to your actual AWS endpoint
-  const apiUrl = process.env.NODE_ENV === 'production' 
-    ? `http://44.202.188.114/v1/score/${walletAddress}?chain=${chain}`
-    : `http://localhost/v1/score/${walletAddress}?chain=${chain}`;
+  const apiUrl = `${API_BASE_URL}/v1/score/${walletAddress}?chain=${chain}`;
   
   const response = await fetch(apiUrl, {
     method: 'GET',

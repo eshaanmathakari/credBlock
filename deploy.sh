@@ -20,14 +20,18 @@ fi
 # Create .env file if it doesn't exist
 if [ ! -f .env ]; then
     echo "📝 Creating .env file from template..."
-    cp .env.template .env
+    if [ ! -f .env.example ]; then
+        echo "❌ Missing .env.example template. Please add it before deploying."
+        exit 1
+    fi
+    cp .env.example .env
     echo "⚠️  Please edit .env file with your configuration before continuing."
     echo "   Required variables:"
     echo "   - ETHEREUM_RPC (Infura/Alchemy URL)"
+    echo "   - ETHERSCAN_API_KEY (for Ethereum lookups)"
     echo "   - SOLANA_RPC_URL (Helius/Alchemy/Ankr URL)"
-    echo "   - MODEL_S3_BUCKET (for ML model storage)"
-    echo "   - AWS_ACCESS_KEY_ID (for S3 access)"
-    echo "   - AWS_SECRET_ACCESS_KEY (for S3 access)"
+    echo "   - VITE_API_BASE_URL (frontend API base, defaults to http://localhost:8000)"
+    echo "   - MODEL_S3_BUCKET / AWS_* (only if loading models from S3)"
     echo ""
     read -p "Press Enter after editing .env file..."
 fi

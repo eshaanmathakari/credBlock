@@ -1,0 +1,8 @@
+node_modules/
+.bun/
+dist/
+.env
+.env.*
+.git
+.gitignore
+src/**/*.test.*
