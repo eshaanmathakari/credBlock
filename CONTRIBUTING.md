@@ -146,7 +146,7 @@ When adding features:
 
 ## 📞 Getting Help
 
-- Join our Discord community
+- DM our X (Previously Twitter) and become a part of our community!
 - Ask questions in GitHub Discussions
 - Check existing issues and PRs
 - Review the codebase
