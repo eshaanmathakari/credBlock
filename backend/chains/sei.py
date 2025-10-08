@@ -50,7 +50,8 @@ class SEIAdapter(ChainAdapter):
             # Initialize credit scorer
             self.credit_scorer = DeFiCreditScorer(
                 lending_pool_addr="0xA1b2C3d4E5f678901234567890abcdef12345678",
-                abi_path="yei-pool.json"
+                abi_path="yei-pool.json",
+                rpc_url=self.rpc_url,
             )
             
             self.is_connected = True

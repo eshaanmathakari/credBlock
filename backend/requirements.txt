@@ -33,8 +33,8 @@ pytest==7.4.3
 pytest-asyncio==0.21.1
 
 # Optional: Solana support (uncomment when implementing)
-# solana==0.30.2
-# base58==2.1.1
+solana==0.30.2
+base58==2.1.1
 
 # Development dependencies
 black==23.11.0

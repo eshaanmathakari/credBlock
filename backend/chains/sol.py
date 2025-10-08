@@ -190,7 +190,7 @@ class SolanaAdapter(ChainAdapter):
             interactions.append(ProtocolInteraction(
                 protocol_name="Raydium",
                 protocol_type="dex",
-                total_volume_usd=8000.0,
+                total_volume_usd=8001.0,
                 interaction_count=40,
                 last_interaction_timestamp=int(time.time()) - 86400 * 1,
                 risk_level="low"

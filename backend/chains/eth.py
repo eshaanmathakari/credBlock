@@ -286,7 +286,7 @@ class EthereumAdapter(ChainAdapter):
             for i in range(min(limit, 20)):
                 transactions.append({
                     'hash': f"0x{'a' * 64}",
-                    'block_number': 18000000 + i,
+                    'block_number': 18001000 + i,
                     'timestamp': int(time.time()) - 86400 * i,
                     'from': address,
                     'to': f"0x{'b' * 40}",

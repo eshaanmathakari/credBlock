@@ -1,328 +1,316 @@
 # CredBlock - DeFi Credit Tracker
 
-📌 **Overview**
+<div align="center">
+  <img src="images/logo.png" alt="CredBlock Logo" width="200" height="200">
+  
+  **Decentralized Credit Scoring for Web3**
+  
+  [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+  [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+  [![React](https://img.shields.io/badge/React-18+-61dafb.svg)](https://reactjs.org/)
+  [![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-009688.svg)](https://fastapi.tiangolo.com/)
+</div>
 
-DeFi Credit Tracker (CredBlock) is a decentralized credit scoring and risk analysis platform built to bring transparency, accessibility, and fairness to Web3 financial ecosystems.
+## 🚀 Overview
 
-Instead of relying on opaque, centralized credit bureaus, CredBlock leverages on-chain activity, multi-chain wallet analytics, and machine learning models to generate a dynamic creditworthiness profile for users across SEI, Ethereum, and Solana networks.
+CredBlock is a revolutionary decentralized credit scoring platform that brings transparency, accessibility, and fairness to Web3 financial ecosystems. Instead of relying on opaque, centralized credit bureaus, CredBlock leverages on-chain activity, multi-chain wallet analytics, and machine learning models to generate dynamic creditworthiness profiles.
 
-## 🚀 Key Features
+### 🎯 Key Features
 
-### 🔗 Multi-Chain Support
-Integrated with SEI, Ethereum, and Solana RPC endpoints to track wallet activity, staking, governance, and transaction histories.
+- **🔗 Multi-Chain Support**: SEI, Ethereum, and Solana integration
+- **🤖 AI-Powered Scoring**: ML models for accurate credit assessment
+- **📊 Real-Time Analytics**: Live blockchain data analysis
+- **⚡ Fast API**: Sub-second response times with Redis caching
+- **🛡️ Privacy-First**: No personal data collection, only public blockchain data
+- **🎨 Modern UI**: Beautiful, responsive interface with CredBlock branding
 
-### 🤖 AI-Powered Credit Scoring
-ML models (hosted on AWS & auto-updated via S3) generate risk-adjusted credit scores using wallet behavior, portfolio diversity, and transaction frequency.
+## 🏗️ Architecture
 
-### 📊 Real-Time Risk Analytics
-Monitors on-chain activity with Redis caching and PostgreSQL persistence to deliver fast, low-latency queries.
-
-### ⚡ API & Dashboard
-REST APIs with CORS/host filtering and a frontend dashboard to visualize scores, history, and DeFi credit profiles.
-
-### 🛡️ Security & Transparency
-Built with clear environment-based configuration, API rate limits, and Prometheus metrics for monitoring.
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Frontend      │    │   Backend API   │    │   Blockchain    │
+│   (React/Vite)  │◄──►│   (FastAPI)     │◄──►│   Networks      │
+│                 │    │                 │    │   (SEI/ETH/SOL) │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+         │                       │                       │
+         │                       ▼                       │
+         │              ┌─────────────────┐              │
+         │              │   Redis Cache   │              │
+         │              │   PostgreSQL    │              │
+         │              └─────────────────┘              │
+         │                                               │
+         ▼                                               ▼
+┌─────────────────┐                            ┌─────────────────┐
+│   ML Models     │                            │   External APIs │
+│   (AWS S3)      │                            │   (Etherscan,   │
+│                 │                            │   Solana RPC)   │
+└─────────────────┘                            └─────────────────┘
+```
 
 ## 🛠️ Tech Stack
 
-**Backend:** Python (FastAPI), Node.js, Redis, PostgreSQL
+### Backend
+- **Framework**: FastAPI (Python 3.11+)
+- **Database**: PostgreSQL + Redis
+- **Blockchain**: Web3.py, Solana SDK
+- **ML**: scikit-learn, joblib
+- **Infrastructure**: Docker, AWS S3
 
-**Frontend:** React + Vite + TailwindCSS
+### Frontend
+- **Framework**: React 18 + TypeScript
+- **Build Tool**: Vite
+- **Styling**: Tailwind CSS + shadcn/ui
+- **State**: TanStack Query
+- **Routing**: React Router
 
-**Blockchain Integrations:**
-- SEI Precompiles (Staking & Governance)
-- Ethereum RPC & Etherscan APIs
-- Solana RPC & WebSocket APIs
+### Blockchain Integrations
+- **SEI**: Native precompiles for staking & governance
+- **Ethereum**: Web3.py + Etherscan API
+- **Solana**: Solana SDK + RPC endpoints
 
-**Infrastructure:**
-- Docker & Docker Compose (multi-arch: ARM64 & AMD64)
-- AWS EC2 (Amazon Linux 2023)
-- AWS ECR (container registry), S3 (ML models), CloudWatch/Grafana
-
-**Machine Learning:** Joblib models for credit scoring, cached with TTL for fast inference
-
-## 🌐 Architecture
-
-**Data Layer** – Collects wallet data from SEI, Ethereum, Solana.
-
-**Processing Layer** – ML models analyze wallet activity and generate credit scores.
-
-**API Layer** – Exposes credit scoring APIs and monitoring endpoints.
-
-**Frontend Dashboard** – Displays credit scores and wallet health in a user-friendly way.
-
-## 💡 Why This Matters
-
-Traditional credit systems exclude millions. DeFi and Web3 offer inclusion, but lack trusted creditworthiness tools.
-
-CredBlock bridges this gap by:
-- Building trustless, transparent scoring
-- Encouraging responsible borrowing/lending in DeFi
-- Enabling new forms of on-chain credit markets
-
-## 🏆 Hackathon Contribution
-
-- Multi-chain integration (SEI, Ethereum, Solana)
-- Containerized multi-arch deployment for portability
-- AI-driven credit scoring pipeline
-- API + dashboard ready for real DeFi apps to consume
-
-## 🔮 Future Roadmap
-
-- Expand to more chains (Polygon, BNB, Avalanche)
-- Integrate zkML for privacy-preserving credit scoring
-- Launch a mobile-first version for DeFi users globally
-- Build partnerships with DeFi lenders & wallets for adoption
-
----
-
-## Quick Start
+## 🚀 Quick Start
 
 ### Prerequisites
-- Python 3.9+
-- Node.js 18+
-- Redis
-- PostgreSQL (optional for production)
+- Python 3.11+
+- Node.js 16+
+- Docker Desktop (running)
 
-### 1. Backend Setup
-
+### 1. Clone the Repository
 ```bash
-cd backend
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Set environment variables
-cp .env.example .env
-# Edit .env with your configuration
-
-# Run the production server
-python production_server.py
+git clone https://github.com/eshaanmathakari/credBlock.git
+cd credblock
 ```
 
-### 2. Frontend Setup
-
+### 2. Start the Application
 ```bash
-cd frontend
-
-# Install dependencies
-npm install
-
-# Start development server
-npm run dev
+# Start everything (recommended)
+./start-local.sh
 ```
 
-### 3. Chrome Extension
+This will:
+- Start Redis and PostgreSQL containers
+- Set up Python virtual environment
+- Install dependencies
+- Start backend on port 8001
+- Start frontend on port 8080
 
+### 3. Access the Application
+- **Frontend**: http://localhost:8080
+- **Backend API**: http://localhost:8001
+- **API Documentation**: http://localhost:8001/docs
+
+## 📖 Usage
+
+### Web Interface
+1. Open http://localhost:8080
+2. Enter a wallet address (SEI, Ethereum, or Solana)
+3. Select the blockchain network
+4. Click "Get Credit Score"
+5. View detailed score breakdown and factors
+
+### API Usage
 ```bash
-cd chrome-extension
+# Get credit score for SEI wallet
+curl "http://localhost:8001/v1/score/0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6?chain=sei"
 
-# Load extension in Chrome
-# 1. Go to chrome://extensions/
-# 2. Enable "Developer mode"
-# 3. Click "Load unpacked" and select the chrome-extension folder
+# Get credit score for Ethereum wallet
+curl "http://localhost:8001/v1/score/0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6?chain=eth"
+
+# Health check
+curl "http://localhost:8001/health"
 ```
 
-## Environment Variables
-
-### Required Variables
-```bash
-# SEI Configuration
-SEI_RPC_URL=https://evm-rpc.sei-apis.com
-SEI_STAKING_CONTRACT=0x...
-SEI_GOVERNANCE_CONTRACT=0x...
-
-# Ethereum Configuration
-ETHEREUM_RPC=https://mainnet.infura.io/v3/YOUR_KEY
-ETHERSCAN_API_KEY=your_etherscan_key
-
-# Solana Configuration
-SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
-
-# Database
-REDIS_URL=redis://localhost:6379
-POSTGRES_URL=postgresql://user:pass@localhost:5432/defi_tracker
-
-# ML Model Storage
-MODEL_S3_BUCKET=your-model-bucket
-MODEL_S3_KEY=models/credit_scorer.joblib
-
-# API Configuration
-RATE_LIMIT_PER_MINUTE=60
-CACHE_TTL_SECONDS=300
-```
-
-### Optional Variables
-```bash
-# Price Data APIs
-CMC_API_KEY=your_coinmarketcap_key
-BINANCE_API_KEY=your_binance_key
-
-# Additional RPC URLs
-POLYGON_RPC=https://polygon-mainnet.infura.io/v3/YOUR_KEY
-ARBITRUM_RPC=https://arbitrum-mainnet.infura.io/v3/YOUR_KEY
-
-# Frontend Configuration
-VITE_API_BASE_URL=http://localhost:8000
-```
-
-## API Documentation
-
-### Credit Score Endpoint
-```http
-GET /v1/score/{wallet}?chain={sei|eth|sol}
-```
-
-**Response:**
+### Example Response
 ```json
 {
-  "wallet": "0x...",
+  "wallet": "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6",
   "chain": "sei",
   "score": 750,
   "risk": "Low Risk",
   "confidence": 0.85,
   "factors": {
     "Account Age": 25,
-    "Tx Activity": 40,
-    "Balances": 30,
-    "DeFi Extras": 35,
-    "Staking": 20,
-    "Governance": 15
+    "Tx Activity": 30,
+    "Balances": 20,
+    "DeFi Extras": 15,
+    "Staking": 10,
+    "Governance": 5
   },
-  "latency_ms": 150,
-  "model_version": "v1.0.0",
-  "last_updated": 1703123456
+  "latency_ms": 120,
+  "model_version": "v1.0.0"
 }
 ```
 
-### Health Check
-```http
-GET /health
-```
+## 🔧 Development
 
-## ML Pipeline
+### Alternative Startup Methods
 
-### Training Models
+**Backend only:**
 ```bash
-cd backend/ml
-
-# Train with synthetic data
-python train.py --samples 10000 --version v1.0.0
-
-# Train with custom S3 bucket
-python train.py --s3-bucket your-bucket --s3-key models/credit_scorer.joblib
+./start-backend.sh
 ```
 
-### Feature Engineering
-The system extracts 20+ features including:
-- Transaction patterns (velocity, burstiness, periodicity)
-- Portfolio diversity (Herfindahl index, blue-chip ratio)
-- Protocol interactions (lending, DEX, bridges)
-- Behavioral risk (mixer usage, sanctioned entity proximity)
-- Staking and governance participation
-
-## Architecture
-
-### Backend Services
-```
-backend/
-├── services/
-│   ├── sei_staking.py      # SEI staking precompile integration
-│   └── sei_governance.py   # SEI governance precompile integration
-├── chains/
-│   ├── base.py            # Chain adapter interface
-│   ├── sei.py             # SEI implementation
-│   ├── eth.py             # Ethereum implementation
-│   └── sol.py             # Solana implementation
-├── ml/
-│   ├── features.py        # Feature engineering
-│   ├── train.py           # Model training
-│   └── serve.py           # Model serving
-└── production_server.py   # Main FastAPI application
-```
-
-### Frontend Components
-```
-frontend/src/
-├── components/
-│   ├── CreditScoreDisplay.tsx
-│   ├── WalletInput.tsx
-│   └── ui/                 # Shadcn/ui components
-├── pages/
-│   └── Index.tsx          # Main page with chain selector
-└── App.tsx
-```
-
-## Testing
-
-### Backend Tests
+**Frontend only:**
 ```bash
-cd backend
-
-# Run all tests
-pytest
-
-# Run specific test files
-pytest tests/test_sei_staking.py
-pytest tests/test_sei_governance.py
-
-# Run with coverage
-pytest --cov=services --cov=chains --cov=ml
+./start-frontend.sh
 ```
 
-### Frontend Tests
+**Docker Compose:**
+```bash
+./start-docker.sh
+```
+
+### Environment Configuration
+```bash
+# Copy environment template
+cp env.template .env
+
+# Edit configuration
+nano .env
+```
+
+Key environment variables:
+- `VITE_API_BASE_URL`: Frontend API endpoint
+- `REDIS_URL`: Redis connection string
+- `SEI_RPC_URL`: SEI network RPC endpoint
+- `ETHEREUM_RPC`: Ethereum RPC endpoint
+- `SOLANA_RPC_URL`: Solana RPC endpoint
+
+### Project Structure
+```
+credblock/
+├── backend/                 # FastAPI backend
+│   ├── services/           # Blockchain services
+│   ├── chains/            # Chain-specific implementations
+│   ├── ml/                # Machine learning models
+│   └── abis/              # Smart contract ABIs
+├── frontend/              # React frontend
+│   ├── src/
+│   │   ├── components/    # React components
+│   │   ├── pages/         # Page components
+│   │   └── hooks/         # Custom hooks
+│   └── public/            # Static assets
+├── images/                # Project assets
+├── chrome-extension/      # Browser extension
+└── scripts/               # Utility scripts
+```
+
+## 🧪 Testing
+
+### Backend Health Check
+```bash
+curl http://localhost:8001/health
+```
+
+### Test Credit Score API
+```bash
+# SEI test wallet
+curl "http://localhost:8001/v1/score/0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6?chain=sei"
+
+# Ethereum test wallet
+curl "http://localhost:8001/v1/score/0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6?chain=eth"
+```
+
+### Frontend Testing
 ```bash
 cd frontend
-
-# Run tests
 npm test
-
-# Run with coverage
-npm run test:coverage
 ```
 
-## Deployment
+## 🚀 Deployment
 
 ### Docker Deployment
 ```bash
-# Build and run with Docker Compose
-docker-compose up -d
+# Build and start all services
+docker-compose up --build
 
-# Or build individual services
-docker build -t defi-credit-backend ./backend
-docker build -t defi-credit-frontend ./frontend
+# Production deployment
+docker-compose -f docker-compose.ec2.yml up -d
 ```
 
-### Production Checklist
-- [ ] Set up Redis cluster for caching
-- [ ] Configure PostgreSQL for persistent storage
-- [ ] Set up S3 bucket for model storage
-- [ ] Configure CDN for frontend assets
-- [ ] Set up monitoring and logging
-- [ ] Configure SSL certificates
-- [ ] Set up CI/CD pipeline
+### AWS Deployment
+```bash
+# Deploy to AWS EC2
+./deploy-aws.sh
+```
 
-## Contributing
+See [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) for detailed deployment instructions.
 
+## 📊 Credit Scoring Algorithm
+
+CredBlock uses a sophisticated multi-factor scoring system:
+
+### Scoring Factors
+1. **Account Age** (0-25 points): Wallet creation date and activity duration
+2. **Transaction Activity** (0-30 points): Transaction frequency and patterns
+3. **Balance Management** (0-20 points): Token holdings and portfolio diversity
+4. **DeFi Interactions** (0-15 points): Protocol usage and liquidity provision
+5. **Staking Activity** (0-10 points): Network participation and staking history
+6. **Governance Participation** (0-5 points): Voting and proposal participation
+
+### Score Ranges
+- **850-1000**: Excellent (A+)
+- **700-849**: Good (A)
+- **500-699**: Fair (B)
+- **300-499**: Poor (C)
+- **0-299**: Very Poor (D)
+
+### Risk Assessment
+- **Low Risk**: Score 700+
+- **Medium Risk**: Score 500-699
+- **High Risk**: Score <500
+
+## 🔒 Security & Privacy
+
+- **No Personal Data**: Only analyzes public blockchain data
+- **No Wallet Connection**: Uses public addresses only
+- **Encrypted Storage**: All cached data is encrypted
+- **Rate Limiting**: API rate limits prevent abuse
+- **CORS Protection**: Configured for secure cross-origin requests
+
+## 🤝 Contributing
+
+We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
+
+### Development Setup
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
 4. Add tests
 5. Submit a pull request
 
-## License
+## 📄 License
 
-MIT License - see LICENSE file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Support
+## 🙏 Acknowledgments
 
-For support and questions:
-- Create an issue on GitHub
-- Join our Discord community
-- Email: support@defi-credit-tracker.com
+- **SEI Foundation** for hosting the hackathon that inspired this project
+- **SEI Network** for providing excellent developer tools and documentation
+- **Open Source Community** for the amazing tools and libraries we use
+
+## 📞 Support
+
+- **Documentation**: [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
+- **Issues**: [GitHub Issues](https://github.com/eshaanmathakari/credBlock/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/eshaanmathakari/credBlock/discussions)
+
+## 🌟 Features Roadmap
+
+- [ ] **Multi-language Support**: Internationalization
+- [ ] **Mobile App**: React Native application
+- [ ] **Advanced Analytics**: Historical trend analysis
+- [ ] **Credit Monitoring**: Real-time alerts and updates
+- [ ] **API Marketplace**: Third-party integrations
+- [ ] **Institutional Tools**: Enterprise-grade features
 
 ---
 
-**✦ CredBlock = AI x DeFi x Web3 Transparency ✦**
-
-**Built with ❤️ for the DeFi community**
+<div align="center">
+  <p>Built with ❤️ for the Web3 community</p>
+  <p>
+    <a href="https://github.com/eshaanmathakari/credBlock">GitHub</a> •
+    <a href="https://credblock.com">Website</a> •
+    <a href="https://twitter.com/credblock">Twitter</a>
+  </p>
+</div>

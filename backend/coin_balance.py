@@ -1,9 +1,12 @@
 # backend/coin_balance.py
-from web3 import Web3
 import argparse
 import sys
+import os
 
-RPC_URL = "https://evm-rpc.sei-apis.com"
+from web3 import Web3
+
+DEFAULT_RPC_URL = "https://evm-rpc.sei-apis.com"
+RPC_URL = os.getenv("SEI_RPC_URL", DEFAULT_RPC_URL)
 
 __all__ = ["get_wallet_balance"]
 

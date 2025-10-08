@@ -42,7 +42,7 @@ RUN echo 'server { \
     \
     # Proxy API requests to backend \
     location /api/ { \
-        proxy_pass http://localhost:8000/; \
+        proxy_pass http://localhost:8001/; \
         proxy_set_header Host $host; \
         proxy_set_header X-Real-IP $remote_addr; \
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; \
@@ -51,7 +51,7 @@ RUN echo 'server { \
     \
     # Proxy v1 API requests to backend \
     location /v1/ { \
-        proxy_pass http://localhost:8000/v1/; \
+        proxy_pass http://localhost:8001/v1/; \
         proxy_set_header Host $host; \
         proxy_set_header X-Real-IP $remote_addr; \
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; \
@@ -60,13 +60,13 @@ RUN echo 'server { \
     \
     # Health check endpoint \
     location /health { \
-        proxy_pass http://localhost:8000/health; \
+        proxy_pass http://localhost:8001/health; \
         proxy_set_header Host $host; \
     } \
     \
     # API documentation \
     location /docs { \
-        proxy_pass http://localhost:8000/docs; \
+        proxy_pass http://localhost:8001/docs; \
         proxy_set_header Host $host; \
     } \
 }' > /etc/nginx/sites-available/default
@@ -78,7 +78,7 @@ nginx \n\
 \n\
 # Start the FastAPI backend \n\
 cd /app \n\
-uvicorn production_server:app --host 0.0.0.0 --port 8000 --workers 1 \n\
+uvicorn production_server:app --host 0.0.0.0 --port 8001 --workers 1 \n\
 ' > /start.sh && chmod +x /start.sh
 
 # Create non-root user

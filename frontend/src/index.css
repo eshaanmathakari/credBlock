@@ -8,43 +8,44 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --background: 240 10% 98%;
-    --foreground: 240 15% 9%;
+    /* CredBlock Brand Colors */
+    --background: 42 100% 97%; /* #fdf7ec - light cream */
+    --foreground: 185 70% 16%; /* #0a444c - dark teal */
 
-    --card: 0 0% 100%;
-    --card-foreground: 240 15% 9%;
+    --card: 42 100% 99%; /* slightly whiter cream for cards */
+    --card-foreground: 185 70% 16%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 240 15% 9%;
+    --popover: 42 100% 99%;
+    --popover-foreground: 185 70% 16%;
 
-    --primary: 213 94% 68%;
-    --primary-foreground: 0 0% 100%;
-    --primary-glow: 213 94% 78%;
+    --primary: 145 50% 42%; /* #2b9257 - main green */
+    --primary-foreground: 42 100% 97%;
+    --primary-glow: 145 50% 52%;
 
-    --secondary: 161 94% 30%;
-    --secondary-foreground: 0 0% 100%;
+    --secondary: 185 70% 16%; /* #0a444c - dark teal */
+    --secondary-foreground: 42 100% 97%;
 
-    --muted: 240 5% 96%;
-    --muted-foreground: 240 4% 46%;
+    --muted: 42 30% 94%;
+    --muted-foreground: 185 30% 35%;
 
-    --accent: 213 100% 95%;
-    --accent-foreground: 213 94% 68%;
+    --accent: 42 70% 90%; /* cream accent */
+    --accent-foreground: 185 70% 16%;
 
     --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
+    --destructive-foreground: 42 100% 97%;
 
-    --border: 240 6% 90%;
-    --input: 240 6% 90%;
-    --ring: 213 94% 68%;
+    --border: 42 30% 90%;
+    --input: 42 30% 90%;
+    --ring: 145 50% 42%;
 
-    /* Financial gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(213 94% 68%), hsl(213 94% 78%));
-    --gradient-success: linear-gradient(135deg, hsl(161 94% 30%), hsl(161 94% 40%));
-    --gradient-hero: linear-gradient(180deg, hsl(240 10% 98%), hsl(213 100% 95%));
+    /* CredBlock Brand Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(145 50% 42%), hsl(145 50% 52%)); /* green gradient */
+    --gradient-success: linear-gradient(135deg, hsl(42 85% 65%), hsl(42 85% 75%)); /* yellow accent gradient */
+    --gradient-hero: linear-gradient(180deg, hsl(42 100% 97%), hsl(42 100% 95%)); /* cream gradient */
     
-    /* Shadows */
-    --shadow-soft: 0 4px 20px -8px hsl(213 94% 68% / 0.15);
-    --shadow-glow: 0 0 30px hsl(213 94% 68% / 0.2);
+    /* Shadows with brand colors */
+    --shadow-soft: 0 4px 20px -8px hsl(145 50% 42% / 0.15);
+    --shadow-glow: 0 0 30px hsl(145 50% 42% / 0.2);
     
     /* Animations */
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);

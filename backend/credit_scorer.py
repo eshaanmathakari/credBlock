@@ -10,27 +10,38 @@ Credit-scoring engine for Sei wallets – PRODUCTION VERSION
 from __future__ import annotations
 
 import datetime as _dt
+import os
 import json
 import time
 import asyncio
 from dataclasses import dataclass
 from typing import Any, Dict, List, Set, Tuple, Optional
 from functools import lru_cache
+from pathlib import Path
 
 import requests
 from web3 import Web3
 
-from coin_balance import get_wallet_balance  # ← reuse working routine
-from services.sei_staking import SEIStakingService, StakingMetrics
-from services.sei_governance import SEIGovernanceService, GovernanceMetrics
+try:
+    from .coin_balance import get_wallet_balance  # ← reuse working routine
+    from .services.sei_staking import SEIStakingService, StakingMetrics
+    from .services.sei_governance import SEIGovernanceService, GovernanceMetrics
+except ImportError:
+    # Fallback for when running directly
+    from coin_balance import get_wallet_balance
+    from services.sei_staking import SEIStakingService, StakingMetrics
+    from services.sei_governance import SEIGovernanceService, GovernanceMetrics
 
 
 # --------------------------------------------------------------------------- #
 # 1.  RPC / Explorer helpers
 # --------------------------------------------------------------------------- #
 
-RPC_URL = "https://evm-rpc.sei-apis.com"
-EXPLORER = "https://sei.blockscout.com/api/v2/addresses"
+DEFAULT_RPC_URL = "https://evm-rpc.sei-apis.com"
+DEFAULT_EXPLORER_URL = "https://sei.blockscout.com/api/v2/addresses"
+
+RPC_URL = os.getenv("SEI_RPC_URL", DEFAULT_RPC_URL)
+EXPLORER = os.getenv("SEI_EXPLORER_URL", DEFAULT_EXPLORER_URL)
 HEADERS = {"accept": "application/json"}
 
 MAX_BLOCK_RANGE = 1_000  # enforced by Sei RPC (reduced from 2000)
@@ -83,13 +94,15 @@ def _fetch_json(url: str, retries: int = 3, timeout: int = 30) -> Dict[str, Any]
 @dataclass(slots=True)
 class SeiProvider:
     w3: Web3
+    rpc_url: str
 
     @classmethod
-    def connect(cls, rpc: str = RPC_URL) -> "SeiProvider":
-        w3 = Web3(Web3.HTTPProvider(rpc))
+    def connect(cls, rpc: Optional[str] = None) -> "SeiProvider":
+        rpc_url = rpc or os.getenv("SEI_RPC_URL", DEFAULT_RPC_URL)
+        w3 = Web3(Web3.HTTPProvider(rpc_url))
         if not w3.is_connected():
-            raise ConnectionError("Cannot reach Sei RPC")
-        return cls(w3=w3)
+            raise ConnectionError(f"Cannot reach Sei RPC at {rpc_url}")
+        return cls(w3=w3, rpc_url=rpc_url)
 
     # -------- wallet metadata -------------------------------------------- #
 
@@ -235,9 +248,24 @@ class DeFiCreditScorer:
     STAKE_W = 0.12
     GOV_W = 0.10
 
-    def __init__(self, lending_pool_addr: str, abi_path: str = "yei-pool.json", redis_client=None):
-        self.provider = SeiProvider.connect()
-        with open(abi_path, "r", encoding="utf-8") as fh:
+    def __init__(
+        self,
+        lending_pool_addr: str,
+        abi_path: str | Path = "yei-pool.json",
+        redis_client=None,
+        rpc_url: Optional[str] = None,
+    ):
+        resolved_rpc = rpc_url or os.getenv("SEI_RPC_URL", DEFAULT_RPC_URL)
+        self.provider = SeiProvider.connect(resolved_rpc)
+
+        abi_file = Path(abi_path)
+        if not abi_file.is_absolute():
+            abi_file = Path(__file__).resolve().parent / abi_file
+
+        if not abi_file.exists():
+            raise FileNotFoundError(f"Unable to locate lending pool ABI at {abi_file}")
+
+        with abi_file.open("r", encoding="utf-8") as fh:
             abi = json.load(fh)
         self.pool = self.provider.w3.eth.contract(
             address=Web3.to_checksum_address(lending_pool_addr),

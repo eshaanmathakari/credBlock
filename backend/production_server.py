@@ -20,9 +20,15 @@ from web3 import Web3
 import logging
 
 # Import our services
-from services.sei_staking import SEIStakingService, StakingMetrics
-from services.sei_governance import SEIGovernanceService, GovernanceMetrics
-from credit_scorer import DeFiCreditScorer
+try:
+    from .services.sei_staking import SEIStakingService, StakingMetrics
+    from .services.sei_governance import SEIGovernanceService, GovernanceMetrics
+    from .credit_scorer import DeFiCreditScorer
+except ImportError:
+    # Fallback for when running directly
+    from services.sei_staking import SEIStakingService, StakingMetrics
+    from services.sei_governance import SEIGovernanceService, GovernanceMetrics
+    from credit_scorer import DeFiCreditScorer
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -150,7 +156,8 @@ class ProductionCreditTracker:
             self.credit_scorer = DeFiCreditScorer(
                 lending_pool_addr="0xA1b2C3d4E5f678901234567890abcdef12345678",
                 abi_path="yei-pool.json",
-                redis_client=self.redis_client
+                redis_client=self.redis_client,
+                rpc_url=config.SEI_RPC_URL,
             )
             
             logger.info("Production Credit Tracker startup complete")
@@ -453,7 +460,7 @@ if __name__ == "__main__":
     uvicorn.run(
         "production_server:app",
         host="0.0.0.0",
-        port=8000,
+        port=8001,
         reload=False,  # Disable reload in production
         workers=4
     )

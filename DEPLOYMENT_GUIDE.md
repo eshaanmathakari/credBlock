@@ -22,7 +22,7 @@ The single container deployment has been **successfully tested** and is working 
 │  ┌─────────────────┐  ┌─────────────────┐              │
 │  │   Frontend      │  │    Backend      │              │
 │  │   (React)       │  │   (FastAPI)     │              │
-│  │   Port 80       │  │   Port 8000     │              │
+│  │   Port 80       │  │   Port 8001     │              │
 │  └─────────────────┘  └─────────────────┘              │
 │           │                     │                       │
 │           └─────────┬───────────┘                       │
@@ -76,7 +76,7 @@ nano .env
 ETHEREUM_RPC=https://mainnet.infura.io/v3/<your-project-id>
 ETHERSCAN_API_KEY=<your-etherscan-key>
 SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
-VITE_API_BASE_URL=http://localhost:8000
+VITE_API_BASE_URL=http://localhost:8001
 ```
 
 **✅ Test Results:**
@@ -84,8 +84,8 @@ VITE_API_BASE_URL=http://localhost:8000
 🎉 CredBlock is now running!
 ==============================
 🌐 Frontend: http://localhost:3000
-📚 API Docs: http://localhost:8000/docs
-🏥 Health: http://localhost:8000/health
+📚 API Docs: http://localhost:8001/docs
+🏥 Health: http://localhost:8001/health
 ```
 
 ### 2. AWS ECR Deployment
@@ -122,17 +122,17 @@ defi-credit-tracker/
 ### Local Testing (VERIFIED)
 ```bash
 # Health check ✅
-curl http://localhost:8000/health
+curl http://localhost:8001/health
 # Response: {"status":"healthy","version":"2.0.0",...}
 
 # Frontend ✅
 open http://localhost:3000
 
 # API docs ✅
-open http://localhost:8000/docs
+open http://localhost:8001/docs
 
 # Test credit scoring ✅
-curl "http://localhost:8000/v1/score/0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6?chain=eth"
+curl "http://localhost:8001/v1/score/0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6?chain=eth"
 ```
 
 ### AWS Testing

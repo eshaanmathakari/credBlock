@@ -5,6 +5,15 @@ export const Hero = () => {
   return (
     <section className="bg-gradient-hero min-h-[60vh] flex items-center justify-center px-4">
       <div className="max-w-4xl mx-auto text-center">
+        {/* CredBlock Logo */}
+        <div className="mb-8 animate-fade-in">
+          <img 
+            src="/logo.png" 
+            alt="CredBlock" 
+            className="h-20 md:h-24 mx-auto mb-4"
+          />
+        </div>
+        
         <Badge variant="secondary" className="mb-6 animate-fade-in">
           <Zap className="w-3 h-3 mr-1" />
           Powered by SEI Network

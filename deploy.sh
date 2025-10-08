@@ -30,7 +30,7 @@ if [ ! -f .env ]; then
     echo "   - ETHEREUM_RPC (Infura/Alchemy URL)"
     echo "   - ETHERSCAN_API_KEY (for Ethereum lookups)"
     echo "   - SOLANA_RPC_URL (Helius/Alchemy/Ankr URL)"
-    echo "   - VITE_API_BASE_URL (frontend API base, defaults to http://localhost:8000)"
+    echo "   - VITE_API_BASE_URL (frontend API base, defaults to http://localhost:8001)"
     echo "   - MODEL_S3_BUCKET / AWS_* (only if loading models from S3)"
     echo ""
     read -p "Press Enter after editing .env file..."
@@ -62,7 +62,7 @@ sleep 30
 echo "🏥 Checking service health..."
 
 # Check backend health
-if curl -f http://localhost:8000/health > /dev/null 2>&1; then
+if curl -f http://localhost:8001/health > /dev/null 2>&1; then
     echo "✅ Backend API is healthy"
 else
     echo "❌ Backend API health check failed"
@@ -92,8 +92,8 @@ echo "🎉 Deployment completed successfully!"
 echo ""
 echo "📊 Services:"
 echo "   - Frontend: http://localhost:3000"
-echo "   - Backend API: http://localhost:8000"
-echo "   - API Docs: http://localhost:8000/docs"
+echo "   - Backend API: http://localhost:8001"
+echo "   - API Docs: http://localhost:8001/docs"
 echo "   - Redis: localhost:6379"
 echo "   - PostgreSQL: localhost:5432"
 echo ""
@@ -106,5 +106,5 @@ echo ""
 echo "📝 Next steps:"
 echo "   1. Open http://localhost:3000 in your browser"
 echo "   2. Test the credit scoring with a wallet address"
-echo "   3. Check the API documentation at http://localhost:8000/docs"
+echo "   3. Check the API documentation at http://localhost:8001/docs"
 echo "   4. Monitor logs with: docker-compose logs -f"

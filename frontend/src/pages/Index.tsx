@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Header } from "@/components/Header";
 import { Hero } from "@/components/Hero";
 import { WalletInput } from "@/components/WalletInput";
 import { CreditScoreDisplay } from "@/components/CreditScoreDisplay";
@@ -7,7 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 
-const fallbackBase = typeof window !== "undefined" ? window.location.origin : "http://localhost:8000";
+const fallbackBase = typeof window !== "undefined" ? "http://localhost:8001" : "http://localhost:8001";
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || fallbackBase).replace(/\/$/, "");
 
 // Real API call to backend; base URL is configurable via VITE_API_BASE_URL
@@ -85,6 +86,7 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background">
+      <Header />
       <Hero />
       
       <section className="py-16 px-4">

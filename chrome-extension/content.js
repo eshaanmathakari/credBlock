@@ -2,8 +2,8 @@
 (function() {
   'use strict';
   
-  // API base URL - updated to production backend
-  const API_BASE = 'http://44.202.188.114';
+  // API base URL - updated to local backend
+  const API_BASE = 'http://localhost:8001';
   
   // Check if we're on a wallet address page
   const addressMatch = location.pathname.match(/address\/(0x[a-fA-F0-9]{40})/);
