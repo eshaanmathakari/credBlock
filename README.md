@@ -108,22 +108,11 @@ This will:
 4. Click "Get Credit Score"
 5. View detailed score breakdown and factors
 
-### API Usage
-```bash
-# Get credit score for SEI wallet
-curl "http://localhost:8001/v1/score/0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6?chain=sei"
-
-# Get credit score for Ethereum wallet
-curl "http://localhost:8001/v1/score/0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6?chain=eth"
-
-# Health check
-curl "http://localhost:8001/health"
-```
 
 ### Example Response
 ```json
 {
-  "wallet": "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6",
+  "wallet": "walletaddresshere",
   "chain": "sei",
   "score": 750,
   "risk": "Low Risk",
@@ -205,10 +194,10 @@ curl http://localhost:8001/health
 ### Test Credit Score API
 ```bash
 # SEI test wallet
-curl "http://localhost:8001/v1/score/0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6?chain=sei"
+curl "http://localhost:8001/v1/score/"
 
 # Ethereum test wallet
-curl "http://localhost:8001/v1/score/0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6?chain=eth"
+curl "http://localhost:8001/v1/score/"
 ```
 
 ### Frontend Testing
@@ -233,9 +222,6 @@ docker-compose -f docker-compose.ec2.yml up -d
 # Deploy to AWS EC2
 ./deploy-aws.sh
 ```
-
-See [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) for detailed deployment instructions.
-
 ## 📊 Credit Scoring Algorithm
 
 CredBlock uses a sophisticated multi-factor scoring system:
@@ -290,19 +276,14 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Open Source Community** for the amazing tools and libraries we use
 
 ## 📞 Support
-
-- **Documentation**: [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
 - **Issues**: [GitHub Issues](https://github.com/eshaanmathakari/credBlock/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/eshaanmathakari/credBlock/discussions)
 
 ## 🌟 Features Roadmap
 
-- [ ] **Multi-language Support**: Internationalization
-- [ ] **Mobile App**: React Native application
-- [ ] **Advanced Analytics**: Historical trend analysis
-- [ ] **Credit Monitoring**: Real-time alerts and updates
-- [ ] **API Marketplace**: Third-party integrations
-- [ ] **Institutional Tools**: Enterprise-grade features
+- [ ] **Chrome Extension**: React Native Chrome extension for everyone to use
+- [ ] **Advanced Analytics**: Historical trend analysis across 20+ Blockchains
+- [ ] **Institutional Grade API Tools**: Enterprise-grade API Features for meeting every need 
 
 ---
 
@@ -310,7 +291,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
   <p>Built with ❤️ for the Web3 community</p>
   <p>
     <a href="https://github.com/eshaanmathakari/credBlock">GitHub</a> •
-    <a href="https://credblock.com">Website</a> •
-    <a href="https://twitter.com/credblock">Twitter</a>
+    <a href="https://credblock.sol">Website</a> •
+    <a href="https://x.com/DevSeekers">Twitter</a>
   </p>
 </div>
