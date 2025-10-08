@@ -222,18 +222,7 @@ docker-compose -f docker-compose.ec2.yml up -d
 # Deploy to AWS EC2
 ./deploy-aws.sh
 ```
-## 📊 Credit Scoring Algorithm
-
-CredBlock uses a sophisticated multi-factor scoring system:
-
-### Scoring Factors
-1. **Account Age** (0-25 points): Wallet creation date and activity duration
-2. **Transaction Activity** (0-30 points): Transaction frequency and patterns
-3. **Balance Management** (0-20 points): Token holdings and portfolio diversity
-4. **DeFi Interactions** (0-15 points): Protocol usage and liquidity provision
-5. **Staking Activity** (0-10 points): Network participation and staking history
-6. **Governance Participation** (0-5 points): Voting and proposal participation
-
+## 📊 Credit Scoring Metrics
 ### Score Ranges
 - **850-1000**: Excellent (A+)
 - **700-849**: Good (A)
